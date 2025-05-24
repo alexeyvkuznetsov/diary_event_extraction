@@ -34,7 +34,7 @@ logger = logging.getLogger(__name__)
 load_dotenv()
 
 # Пути к файлам
-DATA_PATH = "diary_with_id.csv"
+DATA_PATH = "data/diary_with_id.csv"
 KNOWLEDGE_MAP_PATH = "knowledge_map.json" # <-- Путь к файлу с картой знаний
 TEMP_DIR = "temp"
 LAST_PROCESSED_FILE = "last_processed.txt"
