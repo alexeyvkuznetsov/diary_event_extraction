@@ -30,11 +30,10 @@ logger = logging.getLogger(__name__)
 load_dotenv()
 
 DATA_PATH = "data/diary_with_id.csv"
-
 TEMP_DIR = "temp"
 LAST_PROCESSED_FILE = "last_processed.txt"
-TEMP_RESULTS_FILE = "revolution_events_temp.json"
-FINAL_RESULTS_FILE = "revolution_events.json"
+TEMP_RESULTS_FILE = "results/revolution_events_temp.json"
+FINAL_RESULTS_FILE = "results/revolution_events.json"
 
 #MODEL_NAME = "models/gemini-2.5-flash-preview-05-20"
 #MODEL_NAME = "models/gemini-2.5-flash-preview-04-17"
