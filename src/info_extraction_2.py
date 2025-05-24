@@ -36,9 +36,9 @@ LAST_PROCESSED_FILE = "last_processed.txt"
 TEMP_RESULTS_FILE = "results/revolution_events_temp.json"
 FINAL_RESULTS_FILE = "results/revolution_events.json"
 
-MODEL_NAME = "models/gemini-2.5-flash-preview-05-20"
+#MODEL_NAME = "models/gemini-2.5-flash-preview-05-20"
 #MODEL_NAME = "models/gemini-2.5-flash-preview-04-17"
-#MODEL_NAME = "models/gemini-2.0-flash"
+MODEL_NAME = "models/gemini-2.0-flash"
 
 
 API_CALLS_PER_MINUTE = 7
@@ -306,7 +306,7 @@ def extract_revolution_events(entry_id: int, text: str, date: str, extractor_mod
                 prompt,
                 safety_settings=SAFETY_SETTINGS,
                 generation_config=GenerationConfig(
-                    temperature=0.3,
+                    temperature=0.5,
                     response_mime_type="application/json"
                 )
             )
@@ -397,7 +397,7 @@ def verify_event(event_data: Dict[str, Any], verifier_model, full_text: str, cur
                 user_prompt_for_verifier,
                 safety_settings=SAFETY_SETTINGS,
                 generation_config=GenerationConfig(
-                    temperature=0.5,
+                    temperature=0.6,
                     response_mime_type="application/json"
                 )
             )
