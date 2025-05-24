@@ -354,14 +354,15 @@ def verify_event(event_data: Dict[str, Any], verifier_model, full_text: str, cur
     {json.dumps(event_data_to_verify, ensure_ascii=False, indent=2)}
     ```
     Полный текст дневниковой записи для контекста: "{full_text}"
-    Используй Карту Знаний для проверки `event_id`: {current_knowledge_map_str}
+    Используй Карту Знаний для проверки `event_id` и `event_name`: {current_knowledge_map_str}
     Задачи:
     1. Критически оцени `event_id` и `classification_confidence`.
     2. Убедись, что `description` точно отражает `text_fragment`.
-    3. Проверь и скорректируй поля: `event_subtype_custom`, `location_normalized`, `information_source_type` (используй ТОЛЬКО значения из списка), `brief_context` (конкретный факт, не мнение).
-    4. Убедись, что `event_name` соответствует названию из Карты Знаний для данного `event_id` (без префиксов типа 'Событие:'), или является кастомным для 'OTHER_1848'/null.
-    5. Заполни `location` или `information_source`, если возможно из текста.
-    6. Проверь `text_fragment`: он должен быть полным предложением/ями для контекста.
+    3. Проверь и скорректируй поля: `event_subtype_custom`, `location_normalized`, `information_source_type` (используй ТОЛЬКО значения из списка).
+    4. Убедись, что в `brief_context`  указан **конкретный исторический факт (1-2 предложения)**, а не мнение или общее рассуждение. Если нет, исправь или установи 'Не указано'..
+    5. Убедись, что `event_name` соответствует названию из Карты Знаний для данного `event_id` (без префиксов типа 'Событие:'), или является кастомным для 'OTHER_1848'/null.
+    6. Заполни `location` или `information_source`, если возможно из текста.
+    7. Проверь `text_fragment`: он должен быть полным предложением/ями для контекста.
     **Формат ответа:**
     Верни исправленную версию события ТОЛЬКО в формате JSON объекта. Не добавляй никакого текста до или после JSON.
     """
