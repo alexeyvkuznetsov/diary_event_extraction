@@ -412,7 +412,8 @@ def verify_event(event_data: Dict[str, Any], verifier_model, full_text: str, cur
     4. Убедись, что `event_name` соответствует Карте Знаний.
     5. Заполни `location` или `information_source`, если возможно из текста.
     6. Проверь `text_fragment`: должен быть полным предложением/ями для контекста.
-    Верни ТОЛЬКО исправленный JSON объект.
+    **Формат ответа:**
+    Верни исправленную версию события ТОЛЬКО в формате JSON объекта. Не добавляй никакого текста до или после JSON.
     """
     retry_count = 0
     while retry_count < MAX_RETRIES:
