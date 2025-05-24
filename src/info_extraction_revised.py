@@ -42,7 +42,7 @@ TEMP_RESULTS_FILE = "revolution_events_temp.json"
 FINAL_RESULTS_FILE = "revolution_events.json"
 
 # Настройки API
-MODEL_NAME = "models/gemini-2.5-flash"
+MODEL_NAME = "models/gemini-2.5-flash-preview-05-20"
 
 API_CALLS_PER_MINUTE = 7
 MAX_RETRIES = 3
