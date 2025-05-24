@@ -108,7 +108,7 @@ knowledge_map = """
         *   Усиление полицейского надзора / Тайная полиция (ID: RU_REACTION_INTERNAL_POLICE)
         *   Аресты / Следствия / Суды по политическим делам (Петрашевцы и др.) (ID: RU_REACTION_INTERNAL_ARRESTS)
         *   Ссылка / Каторга по политическим мотивам (ID: RU_REACTION_INTERNAL_EXILE)
-        *   Меры против "западного влияния" (указ о бритье, критика иноземщины и др.) (ID: RU_REACTION_INTERNAL_ANTIWEST)
+        *   Меры против "западного влияния" (указ о бритье и др.) (ID: RU_REACTION_INTERNAL_ANTIWEST)
         *   Усиление контроля над образованием / университетами (ID: RU_REACTION_INTERNAL_EDU)
     *   **Подкатегория: Общественные настроения и дискурс (ID: RU_REACTION_SOCIAL)**
         *   Страхи / Опасения перед революцией/беспорядками (ID: RU_REACTION_SOCIAL_FEAR)

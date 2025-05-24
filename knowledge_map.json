@@ -93,7 +93,7 @@
           { "id": "RU_REACTION_INTERNAL_POLICE", "name": "Усиление полицейского надзора / Тайная полиция" },
           { "id": "RU_REACTION_INTERNAL_ARRESTS", "name": "Аресты / Следствия / Суды по политическим делам (Петрашевцы и др.)" },
           { "id": "RU_REACTION_INTERNAL_EXILE", "name": "Ссылка / Каторга по политическим мотивам" },
-          { "id": "RU_REACTION_INTERNAL_ANTIWEST", "name": "Меры против \"западного влияния\" (указ о бритье, критика иноземщины и др.)" },
+          { "id": "RU_REACTION_INTERNAL_ANTIWEST", "name": "Меры против \"западного влияния\" (указ о бритье и др.)" },
           { "id": "RU_REACTION_INTERNAL_EDU", "name": "Усиление контроля над образованием / университетами" }
         ]
       },
