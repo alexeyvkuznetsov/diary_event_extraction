@@ -179,18 +179,18 @@ def manage_api_rate_limit():
     global api_calls_counter, last_api_call_time
     current_time = time.time()
     elapsed_time = current_time - last_api_call_time
-    if elapsed_time >= 60: # Сброс счетчика каждую минуту
+    if elapsed_time >= 60:
         api_calls_counter = 0
         last_api_call_time = current_time
     if api_calls_counter >= API_CALLS_PER_MINUTE:
-        wait_time = 60 - elapsed_time + random.uniform(3, 7) # Ожидание до конца текущей минуты + небольшой запас
+        wait_time = 60 - elapsed_time + random.uniform(3, 7)
         if wait_time > 0:
             logger.info(f"Достигнут лимит API. Ожидание {wait_time:.2f} секунд...")
             time.sleep(wait_time)
-        api_calls_counter = 0 # Сброс после ожидания
+        api_calls_counter = 0
         last_api_call_time = time.time()
     api_calls_counter += 1
-    time.sleep(random.uniform(0.5, 1.5)) # Небольшая пауза между запросами
+    time.sleep(random.uniform(0.5, 1.5))
 
 # -----------------------------------------------------------------------------
 # УТИЛИТЫ ДЛЯ ОБРАБОТКИ ДАННЫХ
@@ -201,7 +201,6 @@ def ensure_default_values(event_dict: Dict[str, Any]) -> Dict[str, Any]:
         logger.warning(f"ensure_default_values получил не словарь: {type(event_dict)}. Возвращаем как есть.")
         return event_dict
 
-    # Установка значений по умолчанию для обязательных строковых полей
     event_dict["event_name"] = event_dict.get("event_name") or "Неклассифицированное событие"
     event_dict["description"] = event_dict.get("description") or "Не указано"
     event_dict["location"] = event_dict.get("location") or "Не указано"
@@ -212,7 +211,6 @@ def ensure_default_values(event_dict: Dict[str, Any]) -> Dict[str, Any]:
     event_dict["text_fragment"] = event_dict.get("text_fragment") or "Не указано"
     event_dict["keywords"] = event_dict.get("keywords") or []
 
-    # Замена пустых строк на None для опциональных полей
     optional_fields_to_check_for_empty_string = [
         "event_id", "date_in_text", "location_normalized",
         "information_source_type", "event_subtype_custom"
@@ -221,14 +219,13 @@ def ensure_default_values(event_dict: Dict[str, Any]) -> Dict[str, Any]:
         if key in event_dict and event_dict[key] == "":
             event_dict[key] = None
 
-    # Валидация значений для полей с ограниченным набором вариантов (Literal)
     literal_fields_map = {
         "information_source_type": [
             "Официальные источники (газеты, манифесты)",
             "Неофициальные сведения (слухи, разговоры в обществе)",
             "Личные наблюдения и опыт автора",
             "Информация от конкретного лица (именованный источник)",
-            "Источник неясен/не указан"
+            "Источник неясен/не указан" # Соответствует промпту экстрактора
         ],
         "confidence": ["High", "Medium", "Low"],
         "classification_confidence": ["High", "Medium", "Low"]
@@ -246,7 +243,7 @@ def load_diary_data(file_path: str) -> pd.DataFrame:
         return pd.read_csv(file_path)
     except Exception as e:
         logger.error(f"Ошибка при загрузке данных из {file_path}: {str(e)}")
-        return pd.DataFrame() # Возвращаем пустой DataFrame в случае ошибки
+        return pd.DataFrame()
 
 # -----------------------------------------------------------------------------
 # ФУНКЦИИ ИЗВЛЕЧЕНИЯ И ВЕРИФИКАЦИИ ДАННЫХ
@@ -266,30 +263,56 @@ def extract_revolution_events(entry_id: int, text: str, date: str, extractor_mod
     Твоя задача - внимательно прочитать текст дневниковой записи и извлечь из него ВСЕ упоминания, ПРЯМО связанные с революциями 1848-1849 гг. в Европе, их последствиями, а также реакцией и восприятием этих событий автором дневника. Для КАЖДОГО такого найденного упоминания (события/аспекта) сформируй JSON-объект со следующими полями:
 
     1.  `entry_id`: Используй предоставленный ID записи: {entry_id}.
-    2.  `event_id`: Определи наиболее подходящий ID из Карты Знаний. Если не подходит или неоднозначно, используй 'OTHER_1848' или `null`.
-    3.  `event_name`: Название события из Карты Знаний или кастомное для 'OTHER_1848'/`null`.
-    4.  `event_subtype_custom`: Краткое (2-5 слов) уточнение для общих `event_id` или 'OTHER_1848', иначе `null`.
-    5.  `description`: Детальное описание события/восприятия СВОИМИ СЛОВАМИ на основе текста, объясняющее связь с революциями 1848-1849 гг.
-    6.  `date_in_text`: Явная дата события из текста (не дата записи), иначе `null`.
-    7.  `source_date`: Используй дату записи: "{date}".
-    8.  `location`: Место события из текста. Если неясно, "Не указано".
-    9.  `location_normalized`: Нормализованное место (город/страна) НА РУССКОМ. Если неясно, `null`.
-    10. `brief_context`: Краткий (1-2 предложения) КОНКРЕТНЫЙ исторический факт для контекста (не пересказ дневника). Если не нужно/неясно, "Не указано".
-    11. `information_source`: Источник информации для автора из текста. Если неясно, "Не указан".
-    12. `information_source_type`: ОДНО из: "Официальные источники (газеты, манифесты)", "Неофициальные сведения (слухи, разговоры в обществе)", "Личные наблюдения и опыт автора", "Информация от конкретного лица (именованный источник)", "Источник неясен/не указан". Если неясно, `null`.
-    13. `confidence`: Общая уверенность ("High", "Medium", "Low") в извлеченных данных (кроме классификации).
-    14. `classification_confidence`: Уверенность ("High", "Medium", "Low") в правильности `event_id`.
-    15. `keywords`: Список из 3-5 ключевых слов/фраз.
-    16. `text_fragment`: ТОЧНАЯ цитата (ОДНО или НЕСКОЛЬКО ПОЛНЫХ ПРЕДЛОЖЕНИЙ) для контекста.
+    2.  `event_id`:
+        *   Определи наиболее подходящий ID из предоставленной Карты Знаний.
+        *   Если ни один ID точно не подходит, но упоминание все же связано с революциями 1848-1849 гг., используй 'OTHER_1848'.
+        *   Если подходящий ID не найден, но событие релевантно и относится к OTHER_1848, или если ID не может быть однозначно определен, установи `null`.
+    3.  `event_name`:
+        *   Если `event_id` определен, возьми точное название события/аспекта из Карты Знаний, соответствующее этому `event_id` (без префиксов типа 'Событие:').
+        *   Если `event_id` равен 'OTHER_1848' или `null`, сформулируй краткое (2-5 слов) кастомное название, отражающее суть упоминания.
+    4.  `event_subtype_custom`:
+        *   Если `event_id` или `event_name` слишком общие (например, для категорий _DISCUSS, _GEN, _REFL, _EMO_GENERAL из Карты Знаний, или для `event_id`='OTHER_1848'), предоставь здесь краткое (2-5 слов) уточнение сути события/аспекта, извлеченное непосредственно из текста.
+        *   В остальных случаях установи `null`.
+    5.  `description`:
+        *   Предоставь детальное описание события или аспекта восприятия, СВОИМИ СЛОВАМИ, но строго на основе информации, содержащейся в `text_fragment` и общем контексте записи. Описание должно объяснять, почему это упоминание связано с революциями 1848-1849 гг.
+    6.  `date_in_text`:
+        *   Если в тексте записи явно указана дата, относящаяся к описываемому событию (не дата самой записи), укажи ее здесь.
+        *   В противном случае установи `null`.
+    7.  `source_date`: Используй предоставленную дату дневниковой записи: "{date}".
+    8.  `location`:
+        *   Укажи место события так, как оно упомянуто или подразумевается в тексте.
+        *   Если место не указано или неясно, используй "Не указано".
+    9.  `location_normalized`:
+        *   Укажи нормализованное основное географическое название (город или страна/регион) НА РУССКОМ ЯЗЫКЕ, к которому относится событие. Например, "Франция", "Вена", "Венгрия", "Вологда".
+        *   Если определить невозможно, установи `null`.
+    10. `brief_context`:
+        *   Предоставь очень краткий (1-2 предложения) КОНКРЕТНЫЙ исторический факт, который помогает понять контекст упоминания в дневнике. Это не должно быть пересказом текста дневника или мнением автора.
+        *   Если контекст не требуется или неясен, используй "Не указано".
+    11. `information_source`:
+        *   Опиши источник, из которого автор дневника узнал о событии, как это указано или подразумевается в тексте (например, "газеты", "разговоры с N.", "письмо от брата").
+        *   Если источник не указан, используй "Не указан".
+    12. `information_source_type`:
+        *   Выбери ОДНО из следующих ТОЧНЫХ значений: "{'Официальные источники (газеты, манифесты)', 'Неофициальные сведения (слухи, разговоры в обществе)', 'Личные наблюдения и опыт автора', 'Информация от конкретного лица (именованный источник)', 'Источник неясен/не указан'}".
+        *   Если тип источника неясен или не указан, установи `null`.
+    13. `confidence`:
+        *   Оцени общую уверенность ("High", "Medium", "Low") в корректности всех извлеченных данных для этого события (кроме `event_id` и `classification_confidence`). Учитывай ясность текста, полноту информации.
+    14. `classification_confidence`:
+        *   Оцени уверенность ("High", "Medium", "Low") в правильности присвоенного `event_id`.
+    15. `keywords`:
+        *   Извлеки список из от 3 до 5 ключевых слов или коротких фраз, которые наилучшим образом характеризуют событие/аспект.
+    16. `text_fragment`:
+        *   Извлеки ТОЧНУЮ цитату из текста дневника – ОДНО или НЕСКОЛЬКО ПОЛНЫХ ПРЕДЛОЖЕНИЙ, – которая содержит упоминание о событии и дает достаточный контекст для его понимания. Избегай слишком коротких обрывков.
 
     **СТРОГИЕ КРИТЕРИИ ОТБОРА (ПОВТОРНО):**
-    Извлекай ТОЛЬКО упоминания, ПРЯМО связанные с революциями 1848-1849 гг. в Европе.
-    ПРОВЕРОЧНЫЙ ВОПРОС: "Можно ли это упоминание ПРЯМО связать с революциями 1848-1849 гг.?" Если "нет" или "возможно" - НЕ включай.
+    Извлекай ТОЛЬКО упоминания, которые ПРЯМО связаны с революциями 1848-1849 гг. в Европе.
+    ВКЛЮЧАТЬ: Конкретные революционные события, реакции российского правительства, обсуждения в обществе, личные размышления автора о них.
+    НЕ ВКЛЮЧАТЬ: Общие рассуждения о политике без привязки к 1848-1849, события вне этого периода, внутренние российские дела без связи с революциями, бытовые упоминания без революционного контекста.
+    ПРОВЕРОЧНЫЙ ВОПРОС: "Можно ли это упоминание ПРЯМО связать с революциями 1848-1849 гг.?" Если ответ "нет" или "возможно" - НЕ включай.
 
     **ФОРМАТ ОТВЕТА:**
-    Верни ТОЛЬКО JSON массив объектов. Если нет релевантных событий, верни пустой массив `[]`.
+    Верни ТОЛЬКО JSON массив, содержащий объекты для каждого найденного релевантного события. Если релевантных упоминаний нет, верни пустой JSON массив `[]`.
 
-    **ПРИМЕР СТРУКТУРЫ ОБЪЕКТА (шаблон):**
+    **ПРИМЕР СТРУКТУРЫ ОДНОГО ОБЪЕКТА В МАССИВЕ (используй как шаблон для каждого найденного события):**
     ```json
     {{
         "entry_id": {entry_id},
@@ -318,7 +341,7 @@ def extract_revolution_events(entry_id: int, text: str, date: str, extractor_mod
                 prompt,
                 safety_settings=SAFETY_SETTINGS,
                 generation_config=GenerationConfig(
-                    temperature=0.3, # Более низкая температура для точности извлечения
+                    temperature=0.3,
                     response_mime_type="application/json"
                 )
             )
@@ -340,7 +363,7 @@ def extract_revolution_events(entry_id: int, text: str, date: str, extractor_mod
             return events
         except json.JSONDecodeError as e:
             logger.error(f"Ошибка декодирования JSON от экстрактора для {entry_id}: {e}. Строка: {json_str}")
-            if retry_count >= MAX_RETRIES -1: raise # Пробрасываем ошибку, если все попытки исчерпаны
+            if retry_count >= MAX_RETRIES -1: raise
         except Exception as e:
             retry_count += 1
             logger.warning(f"Ошибка экстракции для {entry_id} (попытка {retry_count}/{MAX_RETRIES}): {str(e)}")
@@ -348,21 +371,20 @@ def extract_revolution_events(entry_id: int, text: str, date: str, extractor_mod
                 time.sleep(RETRY_WAIT_BASE * retry_count)
             else:
                 logger.error(f"Превышены попытки экстракции для {entry_id}. Пропускаем.")
-                return [] # Возвращаем пустой список при исчерпании попыток
-    return [] # Возвращаем пустой список, если цикл завершился без успеха
+                return []
+    return []
 
 def verify_event(event_data: Dict[str, Any], verifier_model, full_text: str, current_knowledge_map_str: str) -> Dict[str, Any]:
     """Верифицирует и корректирует извлеченное событие с помощью LLM."""
     manage_api_rate_limit()
     if not isinstance(event_data, dict):
         logger.error(f"verify_event получил не словарь: {type(event_data)}.")
-        return event_data # Возвращаем без изменений, если входные данные некорректны
+        return event_data
 
-    event_data_to_verify = ensure_default_values(event_data.copy()) # Копия для безопасного изменения
+    event_data_to_verify = ensure_default_values(event_data.copy())
     original_event_id = event_data_to_verify.get('event_id')
     original_text_fragment = event_data_to_verify.get('text_fragment')
 
-    # "Пользовательский" промпт для модели-верификатора
     user_prompt_for_verifier = f"""
     Проверь и при необходимости исправь следующую информацию о событии, извлеченную из дневника:
     ```json
@@ -410,7 +432,7 @@ def verify_event(event_data: Dict[str, Any], verifier_model, full_text: str, cur
                 user_prompt_for_verifier,
                 safety_settings=SAFETY_SETTINGS,
                 generation_config=GenerationConfig(
-                    temperature=0.5, # Температура для верификатора может быть чуть выше для гибкости
+                    temperature=0.5,
                     response_mime_type="application/json"
                 )
             )
@@ -430,16 +452,15 @@ def verify_event(event_data: Dict[str, Any], verifier_model, full_text: str, cur
                 logger.error(f"Верификатор вернул не словарь для entry_id {event_data.get('entry_id')}. Тип: {type(verified_event)}. Ответ: {verified_event}")
                 raise TypeError("Verifier returned non-dict")
 
-            # Логирование изменений, внесенных верификатором
             if verified_event.get('event_id') != original_event_id:
                 logger.info(f"Верификатор изменил event_id с '{original_event_id}' на '{verified_event.get('event_id')}' для entry_id {event_data.get('entry_id')}")
             if verified_event.get('text_fragment') != original_text_fragment:
                 logger.info(f"Верификатор изменил text_fragment для entry_id {event_data.get('entry_id')}")
 
-            return ensure_default_values(verified_event) # Применяем ensure_default_values к результату верификатора
+            return ensure_default_values(verified_event)
         except json.JSONDecodeError as e:
             logger.error(f"Ошибка декодирования JSON от верификатора для entry_id {event_data.get('entry_id')}: {e}. Строка: {json_str}")
-            if retry_count >= MAX_RETRIES - 1: return event_data_to_verify # Возвращаем исходные (обработанные ensure_default) данные при неудаче
+            if retry_count >= MAX_RETRIES - 1: return event_data_to_verify
         except Exception as e:
             retry_count += 1
             logger.warning(f"Ошибка верификации для entry_id {event_data.get('entry_id')} (попытка {retry_count}/{MAX_RETRIES}): {str(e)}")
@@ -447,8 +468,8 @@ def verify_event(event_data: Dict[str, Any], verifier_model, full_text: str, cur
                 time.sleep(RETRY_WAIT_BASE * retry_count)
             else:
                 logger.error(f"Превышены попытки верификации для entry_id {event_data.get('entry_id')}. Возвращаем исходное событие.")
-                return event_data_to_verify # Возвращаем исходные (обработанные ensure_default) данные
-    return event_data_to_verify # Возврат на случай, если MAX_RETRIES = 0 или другая непредвиденная ситуация
+                return event_data_to_verify
+    return event_data_to_verify
 
 # -----------------------------------------------------------------------------
 # ОСНОВНАЯ ФУНКЦИЯ ОБРАБОТКИ ДНЕВНИКА
@@ -467,31 +488,28 @@ def process_diary():
         logger.critical(f"Критическая ошибка при инициализации моделей: {e}. Завершение работы.")
         return
 
-    all_events: List[Dict[str, Any]] = [] # Список для хранения всех извлеченных событий
+    all_events: List[Dict[str, Any]] = []
 
-    # Создание необходимых директорий, если они отсутствуют
     for dir_path in [TEMP_DIR, os.path.dirname(TEMP_RESULTS_FILE), os.path.dirname(FINAL_RESULTS_FILE)]:
         if dir_path and not os.path.exists(dir_path):
             try:
-                os.makedirs(dir_path, exist_ok=True) # exist_ok=True для избежания ошибок, если директория уже создана другим процессом
+                os.makedirs(dir_path, exist_ok=True)
                 logger.info(f"Создана директория {dir_path}")
             except OSError as e:
                 logger.error(f"Не удалось создать директорию {dir_path}: {e}. Завершение работы.")
                 return
 
-    # Загрузка информации о последней обработанной записи для возобновления
     last_processed_id = 0
     if os.path.exists(LAST_PROCESSED_FILE):
         try:
             with open(LAST_PROCESSED_FILE, "r") as f:
                 content = f.read().strip()
-                if content: # Проверка, что файл не пустой
+                if content:
                     last_processed_id = int(content)
             logger.info(f"Найдена информация о последней обработанной записи: {last_processed_id}")
         except (ValueError, IOError) as e:
             logger.warning(f"Не удалось прочитать ID из {LAST_PROCESSED_FILE}: {e}. Начинаем обработку с начала.")
 
-    # Загрузка ранее обработанных событий из временного файла
     if os.path.exists(TEMP_RESULTS_FILE):
         try:
             with open(TEMP_RESULTS_FILE, "r", encoding="utf-8") as f:
@@ -501,46 +519,40 @@ def process_diary():
             logger.warning(f"Не удалось загрузить события из {TEMP_RESULTS_FILE}: {e}. Начинаем с нуля.")
             all_events = []
 
-    # Итерация по записям дневника
     for index, row in data.iterrows():
         current_entry_id_raw = row.get('entry_id')
         current_date = row.get('date')
         current_text = row.get('text')
 
-        # Проверка на наличие обязательных данных в строке
         if pd.isna(current_entry_id_raw) or pd.isna(current_date) or pd.isna(current_text):
-            logger.warning(f"Пропуск строки DataFrame с индексом {index} из-за отсутствующих данных (entry_id, date или text).")
+            logger.warning(f"Пропуск строки DataFrame с индексом {index} из-за отсутствующих данных.")
             continue
 
         current_entry_id = int(current_entry_id_raw)
         current_text = str(current_text)
 
-        if current_entry_id <= last_processed_id: # Пропуск уже обработанных записей
+        if current_entry_id <= last_processed_id:
             continue
 
         logger.info(f"Обработка записи {current_entry_id} от {current_date}...")
         temp_file_path = os.path.join(TEMP_DIR, f"entry_{current_entry_id}.json")
 
-        # Проверка, была ли эта запись уже полностью обработана (извлечение + верификация)
         if os.path.exists(temp_file_path):
-            logger.info(f"Запись {current_entry_id} уже обработана (найден temp-файл), загружаем результаты...")
+            logger.info(f"Запись {current_entry_id} уже обработана (temp-файл), загружаем...")
             try:
                 with open(temp_file_path, "r", encoding="utf-8") as f_temp_entry:
                     entry_events_from_temp = json.load(f_temp_entry)
 
-                # Механизм предотвращения дубликатов при загрузке из temp-файла записи
                 existing_event_keys = {(evt.get('entry_id'), evt.get('text_fragment', '')[:50], evt.get('event_id'))
                                        for evt in all_events if isinstance(evt, dict)}
                 newly_added_count = 0
                 for evt_data in entry_events_from_temp:
                     if isinstance(evt_data, dict):
-                        # Создание уникального ключа для события
                         key = (evt_data.get('entry_id', current_entry_id),
                                evt_data.get('text_fragment', '')[:50],
                                evt_data.get('event_id'))
                         if key not in existing_event_keys:
                             try:
-                                # Гарантируем наличие entry_id и source_date
                                 evt_data['entry_id'] = evt_data.get('entry_id', current_entry_id)
                                 evt_data['source_date'] = evt_data.get('source_date', current_date)
                                 validated_event = RevolutionEvent(**ensure_default_values(evt_data))
@@ -548,103 +560,93 @@ def process_diary():
                                 existing_event_keys.add(key)
                                 newly_added_count += 1
                             except Exception as e_pydantic:
-                                logger.error(f"Ошибка Pydantic при загрузке из temp-файла записи {current_entry_id}, событие: {evt_data}, ошибка: {e_pydantic}")
+                                logger.error(f"Ошибка Pydantic при загрузке из temp {current_entry_id}: {e_pydantic}")
                 if newly_added_count > 0:
-                    logger.info(f"Добавлено {newly_added_count} уникальных событий из temp-файла для записи {current_entry_id}.")
+                    logger.info(f"Добавлено {newly_added_count} событий из temp-файла для {current_entry_id}.")
             except Exception as e:
-                logger.warning(f"Ошибка при загрузке/обработке temp-файла {temp_file_path}: {e}. Запись {current_entry_id} будет обработана заново.")
-                # Если не удалось загрузить из temp-файла, позволяем коду ниже обработать запись заново
-            else: # Если загрузка из temp-файла прошла успешно
-                # Сохраняем обновленный общий список и помечаем запись как обработанную
+                logger.warning(f"Ошибка загрузки temp-файла {temp_file_path}: {e}. Обрабатываем заново.")
+            else:
                 try:
                     with open(TEMP_RESULTS_FILE, "w", encoding="utf-8") as f_temp_save:
                         json.dump(all_events, f_temp_save, ensure_ascii=False, indent=2)
                     with open(LAST_PROCESSED_FILE, "w") as f_last_proc:
                         f_last_proc.write(str(current_entry_id))
                 except IOError as e_save:
-                    logger.error(f"Ошибка сохранения состояния после загрузки temp-файла для {current_entry_id}: {e_save}")
-                continue # Переходим к следующей записи
+                    logger.error(f"Ошибка сохр. состояния после загрузки temp для {current_entry_id}: {e_save}")
+                continue
 
-        # Этап извлечения и верификации для текущей записи
         try:
             extracted_events_data = extract_revolution_events(current_entry_id, current_text, current_date, extractor_model, knowledge_map_for_prompt)
-            processed_entry_events = [] # События, успешно прошедшие извлечение и верификацию для текущей записи
+            processed_entry_events = []
 
             for event_item_data in extracted_events_data:
                 if not isinstance(event_item_data, dict):
-                    logger.warning(f"Экстрактор вернул не-словарь для записи {current_entry_id}: {event_item_data}. Пропускаем.")
+                    logger.warning(f"Экстрактор вернул не-словарь для {current_entry_id}: {event_item_data}.")
                     continue
 
-                # Гарантируем наличие entry_id и source_date перед верификацией
                 event_item_data['entry_id'] = current_entry_id
                 event_item_data['source_date'] = current_date
 
                 verified_event_item_data = verify_event(event_item_data, verifier_model, current_text, knowledge_map_for_prompt)
 
                 if not isinstance(verified_event_item_data, dict):
-                    logger.warning(f"Верификатор вернул не-словарь для записи {current_entry_id}: {verified_event_item_data}. Пропускаем.")
+                    logger.warning(f"Верификатор вернул не-словарь для {current_entry_id}: {verified_event_item_data}.")
                     continue
 
-                # Повторно гарантируем наличие entry_id и source_date после верификации
                 verified_event_item_data['entry_id'] = current_entry_id
                 verified_event_item_data['source_date'] = current_date
 
                 try:
-                    validated_event = RevolutionEvent(**verified_event_item_data) # Валидация Pydantic
+                    validated_event = RevolutionEvent(**verified_event_item_data)
                     processed_entry_events.append(validated_event.model_dump())
                 except Exception as e_pydantic:
-                    logger.error(f"Ошибка валидации Pydantic для события из записи {current_entry_id}: {str(e_pydantic)}")
+                    logger.error(f"Ошибка Pydantic для события из {current_entry_id}: {str(e_pydantic)}")
                     logger.debug(f"Данные события (Pydantic ошибка): {verified_event_item_data}")
-                    # Попытка "глубокого исправления" и повторной валидации
                     try:
                         deep_fixed_data = ensure_default_values(verified_event_item_data.copy())
                         deep_fixed_data['entry_id'] = current_entry_id
                         deep_fixed_data['source_date'] = current_date
                         validated_event = RevolutionEvent(**deep_fixed_data)
                         processed_entry_events.append(validated_event.model_dump())
-                        logger.info(f"Событие для записи {current_entry_id} добавлено после глубокого исправления Pydantic ошибки.")
+                        logger.info(f"Событие для {current_entry_id} добавлено после исправления Pydantic.")
                     except Exception as e_pydantic_final_retry:
-                        logger.error(f"Не удалось исправить событие для записи {current_entry_id} после ошибки Pydantic (финальная попытка): {str(e_pydantic_final_retry)}")
+                        logger.error(f"Не удалось исправить Pydantic для {current_entry_id}: {str(e_pydantic_final_retry)}")
 
-            # Сохранение результатов обработки текущей записи в ее индивидуальный temp-файл
             try:
                 with open(temp_file_path, "w", encoding="utf-8") as f_entry_temp:
                     json.dump(processed_entry_events, f_entry_temp, ensure_ascii=False, indent=2)
             except IOError as e_save_entry:
-                 logger.error(f"Ошибка сохранения temp-файла для записи {current_entry_id}: {e_save_entry}")
+                 logger.error(f"Ошибка сохранения temp-файла для {current_entry_id}: {e_save_entry}")
 
-            all_events.extend(processed_entry_events) # Добавление обработанных событий в общий список
+            all_events.extend(processed_entry_events)
 
-            # Сохранение обновленного общего списка и пометка записи как обработанной
             try:
                 with open(TEMP_RESULTS_FILE, "w", encoding="utf-8") as f_temp_save:
                     json.dump(all_events, f_temp_save, ensure_ascii=False, indent=2)
                 with open(LAST_PROCESSED_FILE, "w") as f_last_proc:
                     f_last_proc.write(str(current_entry_id))
             except IOError as e_save_main:
-                 logger.error(f"Ошибка сохранения основного состояния после обработки {current_entry_id}: {e_save_main}")
+                 logger.error(f"Ошибка сохр. основного состояния после {current_entry_id}: {e_save_main}")
 
             logger.info(f"Запись {current_entry_id} обработана. Найдено {len(processed_entry_events)} событий.")
 
-        except Exception as e_main_loop: # Обработка других непредвиденных ошибок в цикле обработки записи
-            logger.error(f"Критическая ошибка при обработке записи {current_entry_id}: {str(e_main_loop)}")
-            logger.exception(f"Traceback критической ошибки для записи {current_entry_id}:")
-            logger.info(f"Пропускаем запись {current_entry_id} из-за критической ошибки и продолжаем...")
-            # Помечаем проблемную запись как обработанную, чтобы избежать бесконечных попыток
+        except Exception as e_main_loop:
+            logger.error(f"Критическая ошибка при обработке {current_entry_id}: {str(e_main_loop)}")
+            logger.exception(f"Traceback ошибки для {current_entry_id}:")
+            logger.info(f"Пропуск записи {current_entry_id} из-за ошибки...")
             try:
                 with open(LAST_PROCESSED_FILE, "w") as f:
                     f.write(str(current_entry_id))
             except IOError as e_save_error_state:
-                 logger.error(f"Ошибка сохранения LAST_PROCESSED_FILE после критической ошибки для {current_entry_id}: {e_save_error_state}")
-            time.sleep(5) # Небольшая пауза перед следующей записью
+                 logger.error(f"Ошибка сохр. LAST_PROCESSED_FILE после ошибки для {current_entry_id}: {e_save_error_state}")
+            time.sleep(5)
 
-    # Сохранение итоговых результатов
     try:
         with open(FINAL_RESULTS_FILE, "w", encoding="utf-8") as f_final:
             json.dump(all_events, f_final, ensure_ascii=False, indent=2)
-        logger.info(f"Обработка завершена. Найдено {len(all_events)} событий. Результаты сохранены в {FINAL_RESULTS_FILE}")
+        logger.info(f"Обработка завершена. Найдено {len(all_events)} событий. Результаты в {FINAL_RESULTS_FILE}")
     except IOError as e:
-        logger.error(f"Не удалось сохранить финальный файл результатов {FINAL_RESULTS_FILE}: {e}")
+        logger.error(f"Не удалось сохранить {FINAL_RESULTS_FILE}: {e}")
 
 # -----------------------------------------------------------------------------
 # ТОЧКА ВХОДА
@@ -653,8 +655,8 @@ if __name__ == "__main__":
     logger.info("Запуск скрипта обработки дневника...")
     try:
         process_diary()
-    except Exception as e: # Отлов любых непредвиденных ошибок на верхнем уровне
-        logger.critical(f"Неперехваченная ошибка на верхнем уровне выполнения скрипта: {e}")
+    except Exception as e:
+        logger.critical(f"Неперехваченная ошибка на верхнем уровне: {e}")
         logger.exception("Полный traceback неперехваченной ошибки:")
-    finally: # Этот блок выполнится всегда, даже если было исключение
+    finally:
         logger.info("Работа скрипта завершена.")
