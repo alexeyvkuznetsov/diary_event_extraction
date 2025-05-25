@@ -40,7 +40,7 @@ MODEL_NAME = "models/gemini-2.5-flash-preview-05-20" # Укажите актуа
 #MODEL_NAME = "models/gemini-2.5-flash-preview-04-17"
 #MODEL_NAME = "models/gemini-2.0-flash"
 
-API_CALLS_PER_MINUTE = 7 # Лимит запросов к API в минуту
+API_CALLS_PER_MINUTE = 8 # Лимит запросов к API в минуту
 MAX_RETRIES = 3 # Максимальное количество повторных попыток при ошибках API
 RETRY_WAIT_BASE = 20 # Базовое время ожидания перед повторной попыткой (в секундах)
 
@@ -341,7 +341,7 @@ def extract_revolution_events(entry_id: int, text: str, date: str, extractor_mod
                 prompt,
                 safety_settings=SAFETY_SETTINGS,
                 generation_config=GenerationConfig(
-                    temperature=0.5,
+                    temperature=0.3,
                     response_mime_type="application/json"
                 )
             )
