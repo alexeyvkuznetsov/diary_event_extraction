@@ -497,7 +497,7 @@ def quality_metrics(extracted_events: List[Dict[str, Any]], original_text_length
         'classification_confidence_distribution': Counter([e.get('classification_confidence') for e in extracted_events]),
         'source_type_diversity': Counter([e.get('information_source_type') for e in extracted_events]),
         'source_diversity': len(set(e.get('information_source') for e in extracted_events)),
-        'text_coverage': sum(len(str(e.get('text_fragment', ''))) for e in extracted_events)) / original_text_length if original_text_length > 0 else 0
+        'text_coverage': sum(len(str(e.get('text_fragment', ''))) for e in extracted_events) / original_text_length if original_text_length > 0 else 0
     }
     return metrics
 
