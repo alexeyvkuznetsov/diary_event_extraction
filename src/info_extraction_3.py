@@ -10,6 +10,8 @@ import random
 import traceback
 from dotenv import load_dotenv
 import logging
+import numpy as np # Для метрик качества
+from collections import Counter # Для метрик качества
 
 # -----------------------------------------------------------------------------
 # НАСТРОЙКА ЛОГГИРОВАНИЯ
@@ -29,17 +31,20 @@ logger = logging.getLogger(__name__)
 # -----------------------------------------------------------------------------
 load_dotenv()
 
+# Пути к файлам
+
 DATA_PATH = "data/diary_with_id.csv"
-KNOWLEDGE_MAP_PATH = "knowledge_map.json"
+KNOWLEDGE_MAP_PATH = "knowledge_map.json" # Оставляем, так как create_extraction_prompt его использует
 TEMP_DIR = "temp"
 LAST_PROCESSED_FILE = "last_processed.txt"
 TEMP_RESULTS_FILE = "results/revolution_events_temp.json"
 FINAL_RESULTS_FILE = "results/revolution_events.json"
 
+# Настройки API
+
 MODEL_NAME = "models/gemini-2.5-flash-preview-05-20"
 #MODEL_NAME = "models/gemini-2.5-flash-preview-04-17"
 #MODEL_NAME = "models/gemini-2.0-flash"
-
 
 API_CALLS_PER_MINUTE = 7
 MAX_RETRIES = 3
@@ -56,7 +61,7 @@ api_calls_counter = 0
 last_api_call_time = time.time()
 
 # -----------------------------------------------------------------------------
-# ЗАГРУЗКА И ФОРМАТИРОВАНИЕ КАРТЫ ЗНАНИЙ
+# ЗАГРУЗКА И ФОРМАТИРОВАНИЕ КАРТЫ ЗНАНИЙ (остается как есть, т.к. используется в create_extraction_prompt)
 # -----------------------------------------------------------------------------
 def format_knowledge_node_for_prompt(node: Dict[str, Any], indent_level: int = 0) -> str:
     indent = "    " * indent_level
@@ -101,34 +106,48 @@ def load_and_format_knowledge_map(file_path: str) -> str:
 
 knowledge_map_for_prompt = load_and_format_knowledge_map(KNOWLEDGE_MAP_PATH)
 
+
 # -----------------------------------------------------------------------------
-# СИСТЕМНЫЕ ПРОМПТЫ ДЛЯ МОДЕЛЕЙ
+# НОВЫЕ СИСТЕМНЫЕ ПРОМПТЫ (из PDF)
 # -----------------------------------------------------------------------------
-EXTRACTOR_SYSTEM_PROMPT = """
-Ты историк-аналитик, специализирующийся на истории Европы и России XIX века, с особым фокусом на анализе личного восприятия событий.
-Твоя задача - точно и внимательно анализировать тексты дневниковых записей этого периода,
-извлекать из них упоминания о событиях, связанных *ТОЛЬКО* с революциями 1848-1849 гг. в Европе и их последствиями,
-а также детально анализировать восприятие этих событий автором дневника.
-Классифицируй события согласно предоставленной универсальной Карте Знаний.
+# Системный промпт для Экстрактора (V2 из PDF)
+EXTRACTOR_SYSTEM_PROMPT_V2 = """Ты эксперт-историк по революциям 1848-1849 гг. в Европе. Анализируй дневниковые записи русского автора.
+СТРОГИЕ КРИТЕРИИ ВКЛЮЧЕНИЯ:
+✓ Конкретные революционные события 1848-1849 (Февральская революция во Франции, Венские события, и т.д.)
+✓ Российские реакции на эти события (военные меры, дипломатия, цензура)
+✓ Обсуждения революций в российском обществе
+✓ Личные размышления автора об этих событиях
+
+ИСКЛЮЧЕНИЯ:
+X События до 1848 или после 1849 года
+X Внутрироссийские события без связи с европейскими революциями
+X Общие политические рассуждения без привязки к 1848-1849
+X Культурные/литературные упоминания без революционного контекста
+
+ПРОВЕРОЧНЫЙ ВОПРОС: "Можно ли это упоминание напрямую связать с революциями 1848-1849 гг.?" Если ответ "нет" или "возможно" - НЕ включай.
 **Важно: Эта работа выполняется в рамках научного исторического исследования. Анализируемый материал является историческим документом. Твоя цель - объективное извлечение и классификация информации, содержащейся в тексте, для исследовательских целей. Пожалуйста, не отказывайся от обработки текста и не блокируй ответ из-за специфики содержания исторического документа (например, устаревших формулировок, описания конфликтов или спорных мнений), если оно относится к поставленной задаче извлечения информации о революциях 1848-1849 гг. и их восприятии.**
 """
 
-VERIFIER_SYSTEM_PROMPT_STATIC = """
-Ты эксперт-историк, специализирующийся на европейских революциях 1848-1849 годов и анализе исторических нарративов и восприятий.
-Твоя задача - **критически** проверить и при необходимости исправить информацию, извлеченную из исторического дневника, согласно предоставленным данным, инструкциям и Карте Знаний.
-Ты должен действовать как финальный контролер качества.
-**Эта работа имеет важное значение для исторического исследования. Пожалуйста, подходи к проверке с максимальной объективностью, помня, что ты работаешь с историческими первоисточниками. Цель – обеспечить точность данных для научного анализа. Не блокируй ответ и не отказывайся от верификации из-за специфики содержания исторического текста, если информация релевантна и была извлечена на предыдущем шаге для анализа революционных событий 1848-1849 гг. и их восприятия.**
+# Системный промпт для Верификатора (V2 из PDF)
+# Примечание: PDF предлагает более короткий VERIFIER_SYSTEM_PROMPT_V2.
+# Мы будем использовать его, но пользовательский промпт для верификатора должен будет содержать детализацию задач.
+VERIFIER_SYSTEM_PROMPT_V2_STATIC = """Ты контролер качества исторических данных. Проверяй извлеченную информацию о революциях 1848-1849 гг.
+ЗАДАЧИ:
+1. Соответствие event_id содержанию text_fragment.
+2. Полнота и точность description.
+3. Достаточность контекста в text_fragment.
+4. Правильность классификации источников информации.
+5. Адекватность уровней confidence.
 
-Тебе будут предоставлены:
-1. JSON-объект с извлеченной информацией о событии.
-2. Полный текст дневниковой записи для контекста.
-3. Карта Знаний для классификации.
-4. Список задач по проверке и коррекции.
-
-Твоя цель - вернуть исправленный JSON-объект.
+ПРИНЦИПЫ:
+- Исправляй только очевидные ошибки.
+- Расширяй text_fragment при необходимости для контекста.
+- Будь консервативен в изменениях.
+**Важно: Эта работа имеет важное значение для исторического исследования. Пожалуйста, подходи к проверке с максимальной объективностью, помня, что ты работаешь с историческими первоисточниками. Цель – обеспечить точность данных для научного анализа. Не блокируй ответ и не отказывайся от верификации из-за специфики содержания исторического текста, если информация релевантна и была извлечена на предыдущем шаге для анализа революционных событий 1848-1849 гг. и их восприятия.**
 """
+
 # -----------------------------------------------------------------------------
-# МОДЕЛЬ ДАННЫХ (PYDANTIC)
+# МОДЕЛЬ ДАННЫХ (PYDANTIC) - без изменений
 # -----------------------------------------------------------------------------
 class RevolutionEvent(BaseModel):
     entry_id: int = Field(..., description="Идентификатор записи дневника")
@@ -154,6 +173,7 @@ class RevolutionEvent(BaseModel):
     keywords: List[str] = Field(default_factory=list, description="Ключевые слова из текстового фрагмента")
     text_fragment: str = Field("Не указано", description="Точный фрагмент текста (одно или несколько полных предложений).")
 
+
 # -----------------------------------------------------------------------------
 # УТИЛИТЫ ДЛЯ РАБОТЫ С API
 # -----------------------------------------------------------------------------
@@ -161,13 +181,15 @@ def initialize_models():
     genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
     extractor_model = genai.GenerativeModel(
         model_name=MODEL_NAME,
-        system_instruction=EXTRACTOR_SYSTEM_PROMPT # Используем константу
+        system_instruction=EXTRACTOR_SYSTEM_PROMPT_V2 # Используем новый системный промпт
     )
     verifier_model = genai.GenerativeModel(
         model_name=MODEL_NAME,
-        system_instruction=VERIFIER_SYSTEM_PROMPT_STATIC # Используем новый статический промпт
+        system_instruction=VERIFIER_SYSTEM_PROMPT_V2_STATIC # Используем новый системный промпт
     )
     return extractor_model, verifier_model
+
+# manage_api_rate_limit - без изменений
 
 def manage_api_rate_limit():
     global api_calls_counter, last_api_call_time
@@ -189,6 +211,8 @@ def manage_api_rate_limit():
 # -----------------------------------------------------------------------------
 # УТИЛИТЫ ДЛЯ ОБРАБОТКИ ДАННЫХ
 # -----------------------------------------------------------------------------
+# ensure_default_values - без изменений
+
 def ensure_default_values(event_dict: Dict[str, Any]) -> Dict[str, Any]:
     if not isinstance(event_dict, dict):
         logger.warning(f"ensure_default_values получил не словарь: {type(event_dict)}. Возвращаем как есть.")
@@ -230,6 +254,7 @@ def ensure_default_values(event_dict: Dict[str, Any]) -> Dict[str, Any]:
             event_dict[field] = None
     return event_dict
 
+# load_diary_data - без изменений
 def load_diary_data(file_path: str) -> pd.DataFrame:
     try:
         return pd.read_csv(file_path)
@@ -238,75 +263,66 @@ def load_diary_data(file_path: str) -> pd.DataFrame:
         return pd.DataFrame()
 
 # -----------------------------------------------------------------------------
-# ФУНКЦИИ ИЗВЛЕЧЕНИЯ И ВЕРИФИКАЦИИ ДАННЫХ
+# ФУНКЦИЯ ДЛЯ СОЗДАНИЯ ПОЛЬЗОВАТЕЛЬСКОГО ПРОМПТА ЭКСТРАКТОРА (из PDF)
+# -----------------------------------------------------------------------------
+def create_extraction_user_prompt(entry_id: int, text: str, date: str, knowledge_map: str) -> str:
+    # Адаптируем пример структуры JSON из PDF под полную Pydantic модель
+    # и делаем его более общим, чтобы не вводить модель в заблуждение конкретными значениями.
+    return f"""
+Дневниковая запись от {date} (ID: {entry_id}):
+"{text}"
+
+Карта знаний:
+{knowledge_map}
+
+ЗАДАЧА: Найди ВСЕ упоминания революций 1848-1849 гг. и связанные с ними реакции/восприятия. Для каждого упоминания:
+1. Определи `event_id` по Карте знаний (или OTHER_1848/null, если не подходит).
+2. Извлеки ОДНО или НЕСКОЛЬКО ПОЛНЫХ предложений с достаточным контекстом для `text_fragment`.
+3. Опиши событие/аспект своими словами на основе текста для `description`.
+4. Определи источник информации для автора дневника для `information_source` и `information_source_type`.
+5. Заполни остальные поля (`event_name`, `event_subtype_custom`, `date_in_text`, `location`, `location_normalized`, `brief_context`, `confidence`, `classification_confidence`, `keywords`) согласно их описанию и тексту.
+
+ФОРМАТ: JSON массив объектов. Если ничего не найдено - пустой массив [].
+
+Пример структуры ОДНОГО объекта в массиве (заполни все поля для каждого найденного события):
+```json
+{{
+    "entry_id": {entry_id},
+    "event_id": "ID_ИЗ_КАРТЫ_ЗНАНИЙ_ИЛИ_NULL",
+    "event_name": "НАЗВАНИЕ_СОБЫТИЯ_ИЗ_КАРТЫ_ИЛИ_КАСТОМНОЕ",
+    "event_subtype_custom": "УТОЧНЕНИЕ_ДЛЯ_ОБЩИХ_ID_ИЛИ_NULL",
+    "description": "ОПИСАНИЕ_НА_ОСНОВЕ_ТЕКСТА",
+    "date_in_text": "ДАТА_ИЗ_ТЕКСТА_ИЛИ_NULL",
+    "source_date": "{date}",
+    "location": "МЕСТО_ИЗ_ТЕКСТА_ИЛИ_НЕ_УКАЗАНО",
+    "location_normalized": "НОРМАЛИЗОВАННОЕ_МЕСТО_ИЛИ_NULL",
+    "brief_context": "КРАТКИЙ_ИСТОРИЧЕСКИЙ_ФАКТ_ИЛИ_НЕ_УКАЗАНО",
+    "information_source": "ИСТОЧНИК_ИНФОРМАЦИИ_ДЛЯ_АВТОРА_ИЗ_ТЕКСТА",
+    "information_source_type": "ТИП_ИСТОЧНИКА_ИЗ_СПИСКА_ИЛИ_NULL",
+    "confidence": "High/Medium/Low",
+    "classification_confidence": "High/Medium/Low",
+    "keywords": ["КЛЮЧЕВОЕ_СЛОВО_1", "КЛЮЧЕВОЕ_СЛОВО_2"],
+    "text_fragment": "ТОЧНАЯ_ЦИТАТА_С_КОНТЕКСТОМ"
+}}
+```
+"""
+
+# -----------------------------------------------------------------------------
+# ФУНКЦИИ ИЗВЛЕЧЕНИЯ И ВЕРИФИКАЦИИ ДАННЫХ (с новыми промптами)
 # -----------------------------------------------------------------------------
 def extract_revolution_events(entry_id: int, text: str, date: str, extractor_model, current_knowledge_map_str: str) -> List[Dict[str, Any]]:
     manage_api_rate_limit()
-    prompt = f"""
-    Проанализируй следующую запись из дневника Кирилла Березкина (гимназиста из Вологды) от {date}:
+    # Используем новую функцию для создания пользовательского промпта
+    user_prompt = create_extraction_user_prompt(entry_id, text, date, current_knowledge_map_str)
 
-    "{text}"
-
-    ---
-    **СТРОГИЕ КРИТЕРИИ ОТБОРА:**
-    Извлекай ТОЛЬКО упоминания, которые ПРЯМО связаны с революциями 1848-1849 гг. в Европе.
-
-    **ВКЛЮЧАТЬ:**
-    - Конкретные революционные события 1848-1849 гг. (февральская революция во Франции, венские события, венгерское восстание, итальянские восстания, германские события)
-    - Прямые реакции российского правительства на эти события (военные меры, дипломатические действия, внутренние ограничения)
-    - Обсуждения этих событий в российском обществе
-    - Личные размышления автора об этих конкретных событиях
-
-    **НЕ ВКЛЮЧАТЬ:**
-    - Общие рассуждения о политике без привязки к 1848-1849 гг.
-    - События до 1848 или после 1849 года
-    - Внутренние российские события, не связанные с европейскими революциями
-    - Бытовые упоминания европейских стран без революционного контекста
-    - Абстрактные философские размышления о свободе, власти и т.д.
-    - Литературные или культурные события без политического контекста 1848-1849 гг.
-
-    **ДОПОЛНИТЕЛЬНАЯ ПРОВЕРКА:**
-    Перед включением каждого упоминания задай себе вопрос: "Можно ли это упоминание ПРЯМО связать с революционными событиями 1848-1849 гг. в Европе?" Если ответ "нет" или "возможно" - НЕ включай.
-
-    Используй Карту Знаний для event_id и event_name:
-    {current_knowledge_map_str}
-
-    **ФОРМАТ ОТВЕТА:**
-    Верни ТОЛЬКО JSON массив без дополнительных комментариев, пояснений или текста.
-
-
-    ```json
-    {{
-        "entry_id": {entry_id},
-        "event_id": "ID_из_Карты_Знаний или 'OTHER_1848' или null",
-        "event_name": "Название события/аспекта ИЗ КАРТЫ ЗНАНИЙ (без префиксов типа 'Событие:') или кастомное, если event_id='OTHER_1848' или null",
-        "event_subtype_custom": "Уточнение для общих event_id (например, 'Опасения по поводу цензуры') или null",
-        "description": "Описание события из текста",
-        "date_in_text": "Дата из текста или null",
-        "source_date": "{date}",
-        "location": "Место события (из текста или 'Не указано')",
-        "location_normalized": "Нормализованное место (город/страна) или null",
-        "brief_context": "Конкретный исторический факт (1-2 предложения), связанный с упоминанием. Без мнений. Если неясно/не нужно, то 'Не указано'.",
-        "information_source": "Источник информации для автора (из текста)",
-        "information_source_type": "Тип источника: 'Официальные источники (газеты, манифесты)', 'Неофициальные сведения (слухи, разговоры в обществе)', 'Личные наблюдения и опыт автора', 'Информация от конкретного лица (именованный источник)', 'Источник неясен/не указан', или null.",
-        "confidence": "High/Medium/Low",
-        "classification_confidence": "High/Medium/Low",
-        "keywords": ["список", "ключевых", "слов"],
-        "text_fragment": "Точная цитата (ОДНО ИЛИ НЕСКОЛЬКО ПОЛНЫХ ПРЕДЛОЖЕНИЙ для КОНТЕКСТА). Избегай коротких обрывков."
-    }}
-    ```
-    Ожидаемый формат: `[ {{...}}, {{...}} ]`.
-
-    Если нет релевантных упоминаний, верни пустой JSON массив `[]`.
-    """
     retry_count = 0
     while retry_count < MAX_RETRIES:
         try:
-            response = extractor_model.generate_content(
-                prompt,
+            response = extractor_model.generate_content( # Модель extractor_model имеет system_instruction (EXTRACTOR_SYSTEM_PROMPT_V2)
+                user_prompt,                             # Передаем динамический пользовательский промпт
                 safety_settings=SAFETY_SETTINGS,
                 generation_config=GenerationConfig(
-                    temperature=0.5,
+                    temperature=0.5, # PDF не указывает температуру для экстрактора, ставим среднюю
                     response_mime_type="application/json"
                 )
             )
@@ -349,6 +365,7 @@ def verify_event(event_data: Dict[str, Any], verifier_model, full_text: str, cur
     original_event_id = event_data_to_verify.get('event_id')
     original_text_fragment = event_data_to_verify.get('text_fragment')
 
+    # Пользовательский промпт для верификатора, включающий все необходимые данные и инструкции
     user_prompt_for_verifier = f"""
     Проверь и при необходимости исправь следующую информацию о событии, извлеченную из дневника:
     ```json
@@ -361,30 +378,25 @@ def verify_event(event_data: Dict[str, Any], verifier_model, full_text: str, cur
     Используй следующую Карту Знаний для проверки классификации (`event_id` и `event_name`):
     {current_knowledge_map_str}
 
-    Выполни следующие задачи по проверке и коррекции JSON-объекта (согласно твоей роли и предоставленной Карте Знаний):
+    Выполни следующие задачи по проверке и коррекции JSON-объекта (согласно твоей роли и предоставленной Карте Знаний, как указано в системной инструкции):
     1.  **Классификация и Уверенность:**
-        *   Проверь `event_id`: должен точно соответствовать Карте Знаний и содержанию `text_fragment`. Исправь при необходимости.
-        *   Проверь `event_name`: должен соответствовать названию из Карты Знаний для выбранного `event_id` (без префиксов типа 'Событие:') или быть осмысленным кастомным названием, если `event_id`='OTHER_1848' или null.
-        *   Оцени и при необходимости скорректируй `classification_confidence`.
-
+        *   Проверь `event_id`.
+        *   Проверь `event_name`.
+        *   Оцени и скорректируй `classification_confidence`.
     2.  **Содержание и Текстовая Основа:**
-        *   Проверь `description`: должно точно и полно отражать информацию из `text_fragment`, относящуюся к событию.
-        *   Проверь `text_fragment`: должен содержать одно или несколько **полных** предложений из оригинального текста дневника, дающих достаточный контекст для понимания события. При необходимости, можешь заменить или расширить фрагмент, используя полный текст дневниковой записи.
-        *   Проверь `keywords`: должны быть релевантными ключевыми словами из `text_fragment`.
-
+        *   Проверь `description`.
+        *   Проверь `text_fragment` на полноту и контекст (должен содержать **полные** предложения).
+        *   Проверь `keywords`.
     3.  **Атрибуты События:**
-        *   Проверь `event_subtype_custom`: если `event_id` имеет общий характер (например, категории _DISCUSS, _GEN, _REFL, _EMO_GENERAL), это поле должно содержать краткое (2-5 слов) уточнение сути события/аспекта, извлеченное из текста. В противном случае должно быть `null`.
-        *   Проверь `location`: должно соответствовать месту, указанному или подразумеваемому в `text_fragment`. Если не указано, оставь "Не указано".
-        *   Проверь `location_normalized`: должно быть нормализованным основным местом события (например, 'Вологда', 'Петербург', 'Венгрия', 'Франция'). Если определить невозможно, установи `null`.
-        *   Проверь `date_in_text`: если дата события явно упомянута в тексте, она должна быть здесь. Иначе `null`.
-
+        *   Проверь `event_subtype_custom` (уточнение для общих ID или null).
+        *   Проверь `location` и `location_normalized`.
+        *   Проверь `date_in_text`.
     4.  **Источник Информации:**
-        *   Проверь `information_source`: должно описывать, откуда автор дневника узнал о событии, на основе текста. Если не указан, оставь "Не указан".
-        *   Проверь `information_source_type`: должно быть одним из следующих **точных** русских значений: "Официальные источники (газеты, манифесты)", "Неофициальные сведения (слухи, разговоры в обществе)", "Личные наблюдения и опыт автора", "Информация от конкретного лица (именованный источник)", "Источник неясен/не указан". Если не определить или значение неверное, установи `null`.
-
+        *   Проверь `information_source`.
+        *   Проверь `information_source_type` (должен быть из **точного** списка).
     5.  **Контекст и Общая Уверенность:**
-        *   Проверь `brief_context`: здесь должен быть указан **конкретный исторический факт** (1-2 предложения), непосредственно связанный с упоминанием в `text_fragment` и помогающий понять его исторический контекст. Это не должно быть мнением автора дневника или общим рассуждением. Если нерелевантно или неясно, установи "Не указано".
-        *   Оцени и при необходимости скорректируй `confidence` (общая уверенность в корректности всех извлеченных данных, кроме классификации).
+        *   Проверь `brief_context` (должен быть **конкретным историческим фактом**, не мнением).
+        *   Оцени и скорректируй `confidence`.
 
     **Формат ответа:**
     Верни исправленную версию события ТОЛЬКО в формате JSON объекта. Не добавляй никакого текста до или после JSON.
@@ -394,13 +406,14 @@ def verify_event(event_data: Dict[str, Any], verifier_model, full_text: str, cur
     while retry_count < MAX_RETRIES:
         try:
             response = verifier_model.generate_content(
-                user_prompt_for_verifier,
+                user_prompt_for_verifier, # Модель verifier_model имеет system_instruction (VERIFIER_SYSTEM_PROMPT_V2_STATIC)
                 safety_settings=SAFETY_SETTINGS,
                 generation_config=GenerationConfig(
-                    temperature=0.5,
+                    temperature=0.5, # PDF не указывает, можно оставить 0.5 или снизить для большей строгости
                     response_mime_type="application/json"
                 )
             )
+            # ... (остальная часть функции verify_event без изменений) ...
             if response.prompt_feedback and response.prompt_feedback.block_reason:
                 block_reason_value = response.prompt_feedback.block_reason
                 error_message_detail = f"причина: {block_reason_value.name if hasattr(block_reason_value, 'name') else block_reason_value}"
@@ -436,6 +449,59 @@ def verify_event(event_data: Dict[str, Any], verifier_model, full_text: str, cur
                 return event_data_to_verify
     return event_data_to_verify
 
+
+# -----------------------------------------------------------------------------
+# УЛУЧШЕННАЯ ВАЛИДАЦИЯ ПОЛЕЙ (из PDF, интегрируется в основной цикл)
+# -----------------------------------------------------------------------------
+def enhanced_field_validation(event_dict: Dict[str, Any]) -> Dict[str, Any]:
+    """Расширенная валидация полей с возможными исправлениями или логированием."""
+    # Проверка text_fragment на достаточность контекста
+    fragment = event_dict.get('text_fragment', '')
+    if isinstance(fragment, str) and len(fragment.split()) < 5: # Минимум 5 слов для контекста
+        # Не меняем confidence здесь, так как это задача верификатора, но логируем
+        logger.warning(f"Entry ID {event_dict.get('entry_id')}: Короткий text_fragment: '{fragment}'")
+
+    # Проверка логической связности (пример из PDF)
+    description = event_dict.get('description', '')
+    event_id = event_dict.get('event_id')
+    if isinstance(description, str) and 'революц' in description.lower() and not event_id:
+        logger.warning(f"Entry ID {event_dict.get('entry_id')}: Упоминание революции в description ('{description}') без event_id.")
+        # Здесь можно было бы попытаться установить 'OTHER_1848', но лучше оставить для верификатора или ручного анализа
+
+    # Можно добавить другие валидации, например, соответствие event_id и event_name (хотя это больше задача верификатора)
+
+    return event_dict # Возвращаем event_dict, возможно, с изменениями (если бы они были)
+
+# -----------------------------------------------------------------------------
+# МЕТРИКИ КАЧЕСТВА (из PDF)
+# -----------------------------------------------------------------------------
+def quality_metrics(extracted_events: List[Dict[str, Any]], original_text_length: int) -> Dict[str, Any]:
+    """Метрики качества извлечения."""
+    if not extracted_events:
+        return {
+            'events_count': 0,
+            'avg_fragment_length': 0,
+            'confidence_distribution': Counter(),
+            'classification_confidence_distribution': Counter(),
+            'source_type_diversity': Counter(),
+            'source_diversity': 0,
+            'text_coverage': 0
+        }
+
+    fragment_lengths = [len(str(e.get('text_fragment', '')).split()) for e in extracted_events]
+
+    metrics = {
+        'events_count': len(extracted_events),
+        'avg_fragment_length': np.mean(fragment_lengths) if fragment_lengths else 0,
+        'confidence_distribution': Counter([e.get('confidence') for e in extracted_events]),
+        'classification_confidence_distribution': Counter([e.get('classification_confidence') for e in extracted_events]),
+        'source_type_diversity': Counter([e.get('information_source_type') for e in extracted_events]),
+        'source_diversity': len(set(e.get('information_source') for e in extracted_events)),
+        'text_coverage': sum(len(str(e.get('text_fragment', ''))) for e in extracted_events)) / original_text_length if original_text_length > 0 else 0
+    }
+    return metrics
+
+
 # -----------------------------------------------------------------------------
 # ОСНОВНАЯ ФУНКЦИЯ ОБРАБОТКИ ДНЕВНИКА
 # -----------------------------------------------------------------------------
@@ -452,10 +518,12 @@ def process_diary():
         logger.critical(f"Критическая ошибка при инициализации моделей: {e}. Завершение работы.")
         return
 
+    all_extracted_events_for_metrics: List[Dict[str, Any]] = [] # Для сбора всех событий для итоговых метрик
+    total_text_length_for_metrics = 0 # Для расчета text_coverage
+
     all_events: List[Dict[str, Any]] = []
-    # Создание директорий results и temp, если их нет
     for dir_path in [TEMP_DIR, os.path.dirname(TEMP_RESULTS_FILE), os.path.dirname(FINAL_RESULTS_FILE)]:
-        if dir_path and not os.path.exists(dir_path): # Проверка, что dir_path не пустой (для os.path.dirname)
+        if dir_path and not os.path.exists(dir_path):
             try:
                 os.makedirs(dir_path)
                 logger.info(f"Создана директория {dir_path}")
@@ -493,8 +561,16 @@ def process_diary():
 
         current_entry_id = int(current_entry_id_raw)
         current_text = str(current_text)
+        total_text_length_for_metrics += len(current_text)
+
 
         if current_entry_id <= last_processed_id:
+            # Если мы пропускаем уже обработанные, нам все равно нужны их события для финальных метрик,
+            # если они были в TEMP_RESULTS_FILE.
+            # Однако, если TEMP_RESULTS_FILE не содержал их, или мы начинаем заново, то их не будет.
+            # Это усложнение. Проще всего считать метрики только по вновь обработанным.
+            # Либо, если all_events загружен, он уже содержит старые.
+            # Для простоты, будем считать метрики по всем событиям в `all_events` в конце.
             continue
 
         logger.info(f"Обработка записи {current_entry_id} от {current_date}...")
@@ -516,8 +592,10 @@ def process_diary():
                             try:
                                 evt_data['entry_id'] = evt_data.get('entry_id', current_entry_id)
                                 evt_data['source_date'] = evt_data.get('source_date', current_date)
-                                validated_event = RevolutionEvent(**ensure_default_values(evt_data))
-                                all_events.append(validated_event.model_dump())
+                                validated_event_dict = RevolutionEvent(**ensure_default_values(evt_data)).model_dump()
+                                validated_event_dict = enhanced_field_validation(validated_event_dict) # Применяем доп. валидацию
+                                all_events.append(validated_event_dict)
+                                all_extracted_events_for_metrics.append(validated_event_dict)
                                 existing_event_keys.add(key)
                                 newly_added_count += 1
                             except Exception as e_pydantic:
@@ -553,6 +631,9 @@ def process_diary():
                 verified_event_item_data['entry_id'] = current_entry_id
                 verified_event_item_data['source_date'] = current_date
 
+                # Применяем расширенную валидацию после верификации и перед Pydantic
+                verified_event_item_data = enhanced_field_validation(verified_event_item_data)
+
                 try:
                     validated_event = RevolutionEvent(**verified_event_item_data)
                     processed_entry_events.append(validated_event.model_dump())
@@ -560,7 +641,7 @@ def process_diary():
                     logger.error(f"Ошибка валидации Pydantic для события из {current_entry_id}: {e_pydantic}")
                     logger.debug(f"Данные события (Pydantic ошибка): {verified_event_item_data}")
                     try:
-                        deep_fixed_data = ensure_default_values(verified_event_item_data.copy())
+                        deep_fixed_data = ensure_default_values(verified_event_item_data.copy()) # ensure_default_values уже применен в verify_event
                         deep_fixed_data['entry_id'] = current_entry_id
                         deep_fixed_data['source_date'] = current_date
                         validated_event = RevolutionEvent(**deep_fixed_data)
@@ -573,6 +654,8 @@ def process_diary():
                 json.dump(processed_entry_events, f, ensure_ascii=False, indent=2)
 
             all_events.extend(processed_entry_events)
+            all_extracted_events_for_metrics.extend(processed_entry_events)
+
 
             with open(TEMP_RESULTS_FILE, "w", encoding="utf-8") as f:
                 json.dump(all_events, f, ensure_ascii=False, indent=2)
@@ -593,8 +676,37 @@ def process_diary():
         with open(FINAL_RESULTS_FILE, "w", encoding="utf-8") as f:
             json.dump(all_events, f, ensure_ascii=False, indent=2)
         logger.info(f"Обработка завершена. Найдено {len(all_events)} событий. Результаты в {FINAL_RESULTS_FILE}")
+
+        # Вывод метрик качества по всем обработанным (или загруженным + обработанным) событиям
+        if all_events: # Считаем метрики по всем событиям, которые есть в all_events
+            # Для корректного text_coverage нужно суммировать длину всех текстов дневника,
+            # которые соответствуют событиям в all_events. Это сложнее, если all_events содержит
+            # результаты предыдущих запусков. Проще считать по all_extracted_events_for_metrics,
+            # которые были обработаны в этом запуске.
+            # Если last_processed_id == 0, то total_text_length_for_metrics будет суммой длин всех текстов.
+            # Иначе, это будет сумма длин только новых текстов.
+            # Для простоты и демонстрации, посчитаем по all_extracted_events_for_metrics и total_text_length_for_metrics (длина только новых).
+            # Если нужен coverage по всему датасету, нужно будет отдельно суммировать длину всех текстов в data.
+
+            logger.info("Расчет метрик качества для событий, обработанных в текущем запуске...")
+            metrics = quality_metrics(all_extracted_events_for_metrics, total_text_length_for_metrics)
+            logger.info(f"Метрики качества: {json.dumps(metrics, ensure_ascii=False, indent=2, cls=NpEncoder)}")
+
     except IOError as e:
         logger.error(f"Не удалось сохранить финальный файл {FINAL_RESULTS_FILE}: {e}")
+
+# Класс для сериализации numpy объектов в JSON (для метрик)
+class NpEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, np.integer):
+            return int(obj)
+        if isinstance(obj, np.floating):
+            return float(obj)
+        if isinstance(obj, np.ndarray):
+            return obj.tolist()
+        if isinstance(obj, Counter):
+            return dict(obj)
+        return super(NpEncoder, self).default(obj)
 
 # -----------------------------------------------------------------------------
 # ТОЧКА ВХОДА
