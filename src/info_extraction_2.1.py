@@ -10,8 +10,6 @@ import random
 import traceback
 from dotenv import load_dotenv
 import logging
-import numpy as np
-from collections import Counter
 
 # -----------------------------------------------------------------------------
 # НАСТРОЙКА ЛОГГИРОВАНИЯ
@@ -31,8 +29,6 @@ logger = logging.getLogger(__name__)
 # -----------------------------------------------------------------------------
 load_dotenv()
 
-# Пути к файлам
-
 DATA_PATH = "data/diary_with_id.csv"
 KNOWLEDGE_MAP_PATH = "knowledge_map.json"
 TEMP_DIR = "temp"
@@ -40,11 +36,10 @@ LAST_PROCESSED_FILE = "last_processed.txt"
 TEMP_RESULTS_FILE = "results/revolution_events_temp.json"
 FINAL_RESULTS_FILE = "results/revolution_events.json"
 
-# Настройки API
-
 MODEL_NAME = "models/gemini-2.5-flash-preview-05-20"
 #MODEL_NAME = "models/gemini-2.5-flash-preview-04-17"
 #MODEL_NAME = "models/gemini-2.0-flash"
+
 
 API_CALLS_PER_MINUTE = 7
 MAX_RETRIES = 3
@@ -166,11 +161,11 @@ def initialize_models():
     genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
     extractor_model = genai.GenerativeModel(
         model_name=MODEL_NAME,
-        system_instruction=EXTRACTOR_SYSTEM_PROMPT
+        system_instruction=EXTRACTOR_SYSTEM_PROMPT # Используем константу
     )
     verifier_model = genai.GenerativeModel(
         model_name=MODEL_NAME,
-        system_instruction=VERIFIER_SYSTEM_PROMPT_STATIC
+        system_instruction=VERIFIER_SYSTEM_PROMPT_STATIC # Используем новый статический промпт
     )
     return extractor_model, verifier_model
 
@@ -247,17 +242,7 @@ def load_diary_data(file_path: str) -> pd.DataFrame:
 # -----------------------------------------------------------------------------
 def extract_revolution_events(entry_id: int, text: str, date: str, extractor_model, current_knowledge_map_str: str) -> List[Dict[str, Any]]:
     manage_api_rate_limit()
-
-    info_source_types_list = [
-        "Официальные источники (газеты, манифесты)",
-        "Неофициальные сведения (слухи, разговоры в обществе)",
-        "Личные наблюдения и опыт автора",
-        "Информация от конкретного лица (именованный источник)",
-        "Источник неясен/не указан"
-    ]
-    info_source_types_str_for_prompt = '", "'.join(info_source_types_list)
-
-    user_prompt_for_extractor = f"""
+    prompt = f"""
     Проанализируй следующую запись из дневника (ID: {entry_id}) от {date}:
     "{text}"
 
@@ -298,7 +283,7 @@ def extract_revolution_events(entry_id: int, text: str, date: str, extractor_mod
         *   Опиши источник, из которого автор дневника узнал о событии, как это указано или подразумевается в тексте (например, "газеты", "разговоры с N.", "письмо от брата").
         *   Если источник не указан, используй "Не указан".
     12. `information_source_type`:
-        *   Выбери ОДНО из следующих ТОЧНЫХ значений: "{info_source_types_str_for_prompt}".
+        *   Выбери ОДНО из следующих ТОЧНЫХ значений: "{'Официальные источники (газеты, манифесты)', 'Неофициальные сведения (слухи, разговоры в обществе)', 'Личные наблюдения и опыт автора', 'Информация от конкретного лица (именованный источник)', 'Источник неясен/не указан'}".
         *   Если тип источника неясен или не указан, установи `null`.
     13. `confidence`:
         *   Оцени общую уверенность ("High", "Medium", "Low") в корректности всех извлеченных данных для этого события (кроме `event_id` и `classification_confidence`). Учитывай ясность текста, полноту информации.
@@ -344,10 +329,10 @@ def extract_revolution_events(entry_id: int, text: str, date: str, extractor_mod
     while retry_count < MAX_RETRIES:
         try:
             response = extractor_model.generate_content(
-                user_prompt_for_extractor, # Используем детализированный пользовательский промпт
+                prompt,
                 safety_settings=SAFETY_SETTINGS,
                 generation_config=GenerationConfig(
-                    temperature=0.3, # Более низкая температура для предсказуемости
+                    temperature=0.5,
                     response_mime_type="application/json"
                 )
             )
@@ -390,15 +375,6 @@ def verify_event(event_data: Dict[str, Any], verifier_model, full_text: str, cur
     original_event_id = event_data_to_verify.get('event_id')
     original_text_fragment = event_data_to_verify.get('text_fragment')
 
-    info_source_types_list = [
-        "Официальные источники (газеты, манифесты)",
-        "Неофициальные сведения (слухи, разговоры в обществе)",
-        "Личные наблюдения и опыт автора",
-        "Информация от конкретного лица (именованный источник)",
-        "Источник неясен/не указан"
-    ]
-    info_source_types_str_for_prompt = '", "'.join(info_source_types_list)
-
     user_prompt_for_verifier = f"""
     Проверь и при необходимости исправь следующую информацию о событии, извлеченную из дневника:
     ```json
@@ -423,14 +399,14 @@ def verify_event(event_data: Dict[str, Any], verifier_model, full_text: str, cur
         *   Проверь `keywords`: должны быть релевантными ключевыми словами из `text_fragment`.
 
     3.  **Атрибуты События:**
-        *   Проверь `event_subtype_custom`: если `event_id` имеет общий характер (например, для категорий _DISCUSS, _GEN, _REFL, _EMO_GENERAL), это поле должно содержать краткое (2-5 слов) уточнение сути события/аспекта, извлеченное из текста. В противном случае должно быть `null`.
+        *   Проверь `event_subtype_custom`: если `event_id` имеет общий характер (например, категории _DISCUSS, _GEN, _REFL, _EMO_GENERAL), это поле должно содержать краткое (2-5 слов) уточнение сути события/аспекта, извлеченное из текста. В противном случае должно быть `null`.
         *   Проверь `location`: должно соответствовать месту, указанному или подразумеваемому в `text_fragment`. Если не указано, оставь "Не указано".
-        *   Проверь `location_normalized`: должно быть нормализованным основным местом события (например, 'Вологда', 'Петербург', 'Венгрия', 'Франция') **НА РУССКОМ ЯЗЫКЕ**. Если определить невозможно, установи `null`.
+        *   Проверь `location_normalized`: должно быть нормализованным основным местом события (например, 'Вологда', 'Петербург', 'Венгрия', 'Франция'). Если определить невозможно, установи `null`.
         *   Проверь `date_in_text`: если дата события явно упомянута в тексте, она должна быть здесь. Иначе `null`.
 
     4.  **Источник Информации:**
         *   Проверь `information_source`: должно описывать, откуда автор дневника узнал о событии, на основе текста. Если не указан, оставь "Не указан".
-        *   Проверь `information_source_type`: должно быть ОДНИМ из следующих **точных** русских значений: "{info_source_types_str_for_prompt}". Если не определить или значение неверное, установи `null`.
+        *   Проверь `information_source_type`: должно быть одним из следующих **точных** русских значений: "Официальные источники (газеты, манифесты)", "Неофициальные сведения (слухи, разговоры в обществе)", "Личные наблюдения и опыт автора", "Информация от конкретного лица (именованный источник)", "Источник неясен/не указан". Если не определить или значение неверное, установи `null`.
 
     5.  **Контекст и Общая Уверенность:**
         *   Проверь `brief_context`: здесь должен быть указан **конкретный исторический факт** (1-2 предложения), непосредственно связанный с упоминанием в `text_fragment` и помогающий понять его исторический контекст. Это не должно быть мнением автора дневника или общим рассуждением. Если нерелевантно или неясно, установи "Не указано".
@@ -488,63 +464,7 @@ def verify_event(event_data: Dict[str, Any], verifier_model, full_text: str, cur
 
 # -----------------------------------------------------------------------------
 # ОСНОВНАЯ ФУНКЦИЯ ОБРАБОТКИ ДНЕВНИКА
-# (Остается без изменений по сравнению с предыдущей версией, где уже были метрики и enhanced_field_validation)
-# enhanced_field_validation и quality_metrics также остаются без изменений.
 # -----------------------------------------------------------------------------
-
-# (КОД ФУНКЦИЙ enhanced_field_validation, quality_metrics, process_diary И ТОЧКИ ВХОДА __main__
-# ОСТАЕТСЯ ТАКИМ ЖЕ, КАК В ПРЕДЫДУЩЕМ ОТВЕТЕ, ГДЕ ОНИ БЫЛИ ВНЕДРЕНЫ)
-
-# Для полноты, привожу их здесь снова:
-
-def enhanced_field_validation(event_dict: Dict[str, Any]) -> Dict[str, Any]:
-    """Расширенная валидация полей с возможными исправлениями или логированием."""
-    fragment = event_dict.get('text_fragment', '')
-    if isinstance(fragment, str) and len(fragment.split()) < 5:
-        logger.warning(f"Entry ID {event_dict.get('entry_id')}: Короткий text_fragment: '{fragment}'")
-
-    description = event_dict.get('description', '')
-    event_id = event_dict.get('event_id')
-    if isinstance(description, str) and 'революц' in description.lower() and not event_id:
-        logger.warning(f"Entry ID {event_dict.get('entry_id')}: Упоминание революции в description ('{description}') без event_id.")
-    return event_dict
-
-class NpEncoder(json.JSONEncoder):
-    def default(self, obj):
-        if isinstance(obj, np.integer):
-            return int(obj)
-        if isinstance(obj, np.floating):
-            return float(obj)
-        if isinstance(obj, np.ndarray):
-            return obj.tolist()
-        if isinstance(obj, Counter):
-            return dict(obj)
-        return super(NpEncoder, self).default(obj)
-
-def quality_metrics(extracted_events: List[Dict[str, Any]], original_text_length: int) -> Dict[str, Any]:
-    """Метрики качества извлечения."""
-    if not extracted_events:
-        return {
-            'events_count': 0,
-            'avg_fragment_length': 0,
-            'confidence_distribution': Counter(),
-            'classification_confidence_distribution': Counter(),
-            'source_type_diversity': Counter(),
-            'source_diversity': 0,
-            'text_coverage': 0
-        }
-    fragment_lengths = [len(str(e.get('text_fragment', '')).split()) for e in extracted_events]
-    metrics = {
-        'events_count': len(extracted_events),
-        'avg_fragment_length': np.mean(fragment_lengths) if fragment_lengths else 0,
-        'confidence_distribution': Counter([e.get('confidence') for e in extracted_events]),
-        'classification_confidence_distribution': Counter([e.get('classification_confidence') for e in extracted_events]),
-        'source_type_diversity': Counter([e.get('information_source_type') for e in extracted_events]),
-        'source_diversity': len(set(e.get('information_source') for e in extracted_events)),
-        'text_coverage': sum(len(str(e.get('text_fragment', ''))) for e in extracted_events) / original_text_length if original_text_length > 0 else 0
-    }
-    return metrics
-
 def process_diary():
     data = load_diary_data(DATA_PATH)
     if data.empty:
@@ -558,18 +478,17 @@ def process_diary():
         logger.critical(f"Критическая ошибка при инициализации моделей: {e}. Завершение работы.")
         return
 
-    all_extracted_events_for_metrics: List[Dict[str, Any]] = []
-    total_text_length_for_metrics = 0
-
     all_events: List[Dict[str, Any]] = []
+    # Создание директорий results и temp, если их нет
     for dir_path in [TEMP_DIR, os.path.dirname(TEMP_RESULTS_FILE), os.path.dirname(FINAL_RESULTS_FILE)]:
-        if dir_path and not os.path.exists(dir_path):
+        if dir_path and not os.path.exists(dir_path): # Проверка, что dir_path не пустой (для os.path.dirname)
             try:
                 os.makedirs(dir_path)
                 logger.info(f"Создана директория {dir_path}")
             except OSError as e:
                 logger.error(f"Не удалось создать директорию {dir_path}: {e}. Завершение работы.")
                 return
+
 
     last_processed_id = 0
     if os.path.exists(LAST_PROCESSED_FILE):
@@ -601,9 +520,6 @@ def process_diary():
         current_entry_id = int(current_entry_id_raw)
         current_text = str(current_text)
 
-        if current_entry_id > last_processed_id: # Только для новых записей считаем длину для метрик
-             total_text_length_for_metrics += len(current_text)
-
         if current_entry_id <= last_processed_id:
             continue
 
@@ -626,10 +542,8 @@ def process_diary():
                             try:
                                 evt_data['entry_id'] = evt_data.get('entry_id', current_entry_id)
                                 evt_data['source_date'] = evt_data.get('source_date', current_date)
-                                validated_event_dict = RevolutionEvent(**ensure_default_values(evt_data)).model_dump()
-                                validated_event_dict = enhanced_field_validation(validated_event_dict)
-                                all_events.append(validated_event_dict)
-                                all_extracted_events_for_metrics.append(validated_event_dict)
+                                validated_event = RevolutionEvent(**ensure_default_values(evt_data))
+                                all_events.append(validated_event.model_dump())
                                 existing_event_keys.add(key)
                                 newly_added_count += 1
                             except Exception as e_pydantic:
@@ -665,8 +579,6 @@ def process_diary():
                 verified_event_item_data['entry_id'] = current_entry_id
                 verified_event_item_data['source_date'] = current_date
 
-                verified_event_item_data = enhanced_field_validation(verified_event_item_data)
-
                 try:
                     validated_event = RevolutionEvent(**verified_event_item_data)
                     processed_entry_events.append(validated_event.model_dump())
@@ -687,7 +599,6 @@ def process_diary():
                 json.dump(processed_entry_events, f, ensure_ascii=False, indent=2)
 
             all_events.extend(processed_entry_events)
-            all_extracted_events_for_metrics.extend(processed_entry_events)
 
             with open(TEMP_RESULTS_FILE, "w", encoding="utf-8") as f:
                 json.dump(all_events, f, ensure_ascii=False, indent=2)
@@ -708,23 +619,6 @@ def process_diary():
         with open(FINAL_RESULTS_FILE, "w", encoding="utf-8") as f:
             json.dump(all_events, f, ensure_ascii=False, indent=2)
         logger.info(f"Обработка завершена. Найдено {len(all_events)} событий. Результаты в {FINAL_RESULTS_FILE}")
-
-        if all_extracted_events_for_metrics:
-            logger.info("Расчет метрик качества для событий, обработанных в текущем запуске...")
-            # Если total_text_length_for_metrics == 0 (например, все записи были пропущены), text_coverage будет некорректным.
-            # Это нужно учитывать, если метрики очень важны для каждого запуска.
-            # В данном случае, если total_text_length_for_metrics == 0, а события есть (из temp), coverage будет 0.
-            metrics = quality_metrics(all_extracted_events_for_metrics, total_text_length_for_metrics if total_text_length_for_metrics > 0 else 1)
-            logger.info(f"Метрики качества: {json.dumps(metrics, ensure_ascii=False, indent=2, cls=NpEncoder)}")
-        elif all_events : # Если обработанных в этом запуске нет, но есть загруженные из temp_results
-             logger.info("Расчет метрик качества для всех загруженных/ранее обработанных событий...")
-             # Здесь total_text_length будет неверным для text_coverage, т.к. мы не знаем длину оригинальных текстов для старых событий.
-             # Поэтому text_coverage будет неинформативным.
-             all_original_text_length = sum(len(str(row.get('text',''))) for _, row in data.iterrows()) # Приблизительно, если хотим по всему датасету
-             metrics = quality_metrics(all_events, all_original_text_length) # Coverage будет не точным, но остальные метрики да.
-             logger.info(f"Метрики качества (по всем событиям в all_events, text_coverage может быть неточным): {json.dumps(metrics, ensure_ascii=False, indent=2, cls=NpEncoder)}")
-
-
     except IOError as e:
         logger.error(f"Не удалось сохранить финальный файл {FINAL_RESULTS_FILE}: {e}")
 
