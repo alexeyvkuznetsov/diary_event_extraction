@@ -341,7 +341,7 @@ def extract_revolution_events(entry_id: int, text: str, date: str, extractor_mod
                 prompt,
                 safety_settings=SAFETY_SETTINGS,
                 generation_config=GenerationConfig(
-                    temperature=0.1,
+                    temperature=0.2,
                     response_mime_type="application/json"
                 )
             )
@@ -432,7 +432,7 @@ def verify_event(event_data: Dict[str, Any], verifier_model, full_text: str, cur
                 user_prompt_for_verifier,
                 safety_settings=SAFETY_SETTINGS,
                 generation_config=GenerationConfig(
-                    temperature=0.3,
+                    temperature=0.5,
                     response_mime_type="application/json"
                 )
             )
