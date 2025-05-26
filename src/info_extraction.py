@@ -341,7 +341,7 @@ def extract_revolution_events(entry_id: int, text: str, date: str, extractor_mod
                 prompt,
                 safety_settings=SAFETY_SETTINGS,
                 generation_config=GenerationConfig(
-                    temperature=0.3,
+                    temperature=0.2,
                     response_mime_type="application/json"
                 )
             )
