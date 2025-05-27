@@ -36,7 +36,8 @@ TEMP_RESULTS_FILE = "results/revolution_events_temp_openai.json" # Измене�
 FINAL_RESULTS_FILE = "results/revolution_events_openai.json" # Изменено имя
 
 # MODEL_NAME используется теперь внутри вызовов OpenAI клиента
-MODEL_NAME = "models/gemini-2.5-flash-preview-05-20" # Укажите актуальную модель
+#MODEL_NAME = "models/gemini-2.5-flash-preview-05-20" # Укажите актуальную модель
+MODEL_NAME = "models/gemini-2.5-pro-exp-03-25"
 #MODEL_NAME = "models/gemini-2.5-flash-preview-04-17"
 #MODEL_NAME = "models/gemini-2.0-flash"
 
