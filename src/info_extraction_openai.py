@@ -416,7 +416,7 @@ def verify_event(event_data: Dict[str, Any], client: OpenAI, full_text: str, cur
             completion = client.chat.completions.create(
                 model=MODEL_NAME,
                 messages=[
-                    {"role": "syste", "content": VERIFIER_SYSTEM_PROMPT_STATIC},
+                    {"role": "system", "content": VERIFIER_SYSTEM_PROMPT_STATIC},
                     {"role": "user", "content": user_prompt_for_verifier}
                 ],
                 temperature=0.5,
