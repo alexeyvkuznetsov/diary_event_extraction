@@ -164,7 +164,7 @@ class RevolutionEvent(BaseModel):
 # УТИЛИТЫ ДЛЯ РАБОТЫ С API - ИЗМЕНЕНЫ
 # -----------------------------------------------------------------------------
 def initialize_openai_client():
-    """Инициализирует и возвращает клиент OpenAI для Gemini."""
+    """Инициализирует и возвращает клиент OpenAI."""
     api_key = os.getenv("FORGET_API_KEY")
     if not api_key:
         logger.critical("Переменная окружения FORGET_API_KEY не найдена!")
@@ -177,7 +177,7 @@ def initialize_openai_client():
         api_key=api_key,
         base_url="https://forgetapi.ru/v1" # OpenAI-compatible endpoint
     )
-    logger.info("Клиент OpenAI (для Gemini) успешно инициализирован.")
+    logger.info("Клиент OpenAI успешно инициализирован.")
     return client
 
 # Глобальный клиент, чтобы не создавать его каждый раз
@@ -481,7 +481,7 @@ def process_diary():
         logger.error("Не удалось загрузить данные дневника или файл пуст. Завершение работы.")
         return
 
-    logger.info("Инициализация OpenAI клиента для Gemini...")
+    logger.info("Инициализация OpenAI клиента ...")
     try:
         # Клиент теперь инициализируется при первом вызове get_openai_client()
         # или можно инициализировать его здесь один раз:
