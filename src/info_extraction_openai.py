@@ -1,7 +1,6 @@
 import pandas as pd
 import json
-import google.generativeai as genai
-from google.generativeai.types import HarmCategory, HarmBlockThreshold, GenerationConfig
+from openai import OpenAI # <-- Изменение
 from pydantic import BaseModel, Field
 from typing import List, Optional, Literal, Dict, Any
 import time
@@ -18,7 +17,7 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(module)s - %(funcName)s - %(message)s',
     handlers=[
-        logging.FileHandler("processing.log", mode='a', encoding='utf-8'),
+        logging.FileHandler("processing_openai.log", mode='a', encoding='utf-8'), # Изменено имя лог-файла
         logging.StreamHandler()
     ]
 )
@@ -30,67 +29,54 @@ logger = logging.getLogger(__name__)
 load_dotenv()
 
 DATA_PATH = "data/diary_with_id.csv"
-KNOWLEDGE_MAP_PATH = "knowledge_map.json" # Путь к JSON-файлу с картой знаний
-TEMP_DIR = "temp" # Директория для временных файлов обработки записей
-LAST_PROCESSED_FILE = "last_processed.txt" # Файл для отслеживания последней обработанной записи
-TEMP_RESULTS_FILE = "results/revolution_events_temp.json" # Промежуточный файл с результатами
-FINAL_RESULTS_FILE = "results/revolution_events.json" # Итоговый файл с результатами
+KNOWLEDGE_MAP_PATH = "knowledge_map.json"
+TEMP_DIR = "temp" # Изменена папка
+LAST_PROCESSED_FILE = "last_processed_openai.txt" # Изменено имя
+TEMP_RESULTS_FILE = "results/revolution_events_temp_openai.json" # Изменено имя
+FINAL_RESULTS_FILE = "results/revolution_events_openai.json" # Изменено имя
 
+# MODEL_NAME используется теперь внутри вызовов OpenAI клиента
 MODEL_NAME = "models/gemini-2.5-flash-preview-05-20" # Укажите актуальную модель
 #MODEL_NAME = "models/gemini-2.5-flash-preview-04-17"
 #MODEL_NAME = "models/gemini-2.0-flash"
 
-API_CALLS_PER_MINUTE = 8 # Лимит запросов к API в минуту
-MAX_RETRIES = 3 # Максимальное количество повторных попыток при ошибках API
-RETRY_WAIT_BASE = 20 # Базовое время ожидания перед повторной попыткой (в секундах)
 
-SAFETY_SETTINGS = [
-    {'category': HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, 'threshold': HarmBlockThreshold.BLOCK_NONE},
-    {'category': HarmCategory.HARM_CATEGORY_HATE_SPEECH, 'threshold': HarmBlockThreshold.BLOCK_NONE},
-    {'category': HarmCategory.HARM_CATEGORY_HARASSMENT, 'threshold': HarmBlockThreshold.BLOCK_NONE},
-    {'category': HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, 'threshold': HarmBlockThreshold.BLOCK_NONE},
-]
+API_CALLS_PER_MINUTE = 8 # Оставляем для manage_api_rate_limit
+MAX_RETRIES = 3
+RETRY_WAIT_BASE = 20
 
-# Глобальные переменные для отслеживания лимитов API
+# SAFETY_SETTINGS больше не используются в вызовах API, предполагается настройка на стороне сервера
+
 api_calls_counter = 0
 last_api_call_time = time.time()
 
 # -----------------------------------------------------------------------------
-# ЗАГРУЗКА И ФОРМАТИРОВАНИЕ КАРТЫ ЗНАНИЙ
+# ЗАГРУЗКА И ФОРМАТИРОВАНИЕ КАРТЫ ЗНАНИЙ (без изменений)
 # -----------------------------------------------------------------------------
 def format_knowledge_node_for_prompt(node: Dict[str, Any], indent_level: int = 0) -> str:
-    """Рекурсивно форматирует узел карты знаний из JSON в текстовый вид для промпта."""
     indent = "    " * indent_level
     name_prefix = "**" if indent_level == 0 else "*"
     name_suffix = "**" if indent_level == 0 else "*"
     id_str = f" (ID: {node['id']})" if 'id' in node else ""
     node_type_prefix = "Категория: " if indent_level == 0 else "Подкатегория: " if indent_level == 1 else ""
-
     line = f"{indent}{name_prefix}   {node_type_prefix}{node['name']}{id_str}{name_suffix}\n"
-
     if "children" in node and node["children"]:
         for child_node in node["children"]:
             line += format_knowledge_node_for_prompt(child_node, indent_level + 1)
     return line
 
 def load_and_format_knowledge_map(file_path: str) -> str:
-    """Загружает карту знаний из JSON-файла и преобразует ее в текстовый формат для LLM."""
     try:
         with open(file_path, 'r', encoding='utf-8') as f:
             structured_map = json.load(f)
-
         if not isinstance(structured_map, list):
             logger.error(f"Карта Знаний в {file_path} должна быть списком JSON объектов.")
             raise ValueError("Неверный формат корневого элемента Карты Знаний.")
-
-        # Заголовок для текстового представления карты знаний
         formatted_string = "**Универсальная Карта Знаний для Классификации Событий и Восприятий (Революции 1848-1849 гг.):**\n\n"
         for top_level_node in structured_map:
             formatted_string += format_knowledge_node_for_prompt(top_level_node, indent_level=0)
-
         logger.info(f"Карта Знаний успешно загружена и отформатирована из {file_path}")
         return formatted_string.strip()
-
     except FileNotFoundError:
         logger.error(f"Файл Карты Знаний не найден: {file_path}")
         raise
@@ -105,7 +91,7 @@ def load_and_format_knowledge_map(file_path: str) -> str:
 knowledge_map_for_prompt = load_and_format_knowledge_map(KNOWLEDGE_MAP_PATH)
 
 # -----------------------------------------------------------------------------
-# СИСТЕМНЫЕ ПРОМПТЫ ДЛЯ МОДЕЛЕЙ
+# СИСТЕМНЫЕ ПРОМПТЫ ДЛЯ МОДЕЛЕЙ (остаются как строки)
 # -----------------------------------------------------------------------------
 EXTRACTOR_SYSTEM_PROMPT = """
 Ты историк-аналитик, специализирующийся на истории Европы и России XIX века, с особым фокусом на анализе личного восприятия событий.
@@ -119,6 +105,7 @@ EXTRACTOR_SYSTEM_PROMPT = """
 - Место: город Вологда, Вологодская губерния.
 - Историческая значимость: дневник отражает восприятие важных исторических событий в российской провинции.
 **Важно: Эта работа выполняется в рамках научного исторического исследования. Анализируемый материал является историческим документом. Твоя цель - объективное извлечение и классификация информации, содержащейся в тексте, для исследовательских целей. Пожалуйста, не отказывайся от обработки текста и не блокируй ответ из-за специфики содержания исторического документа (например, устаревших формулировок, описания конфликтов или спорных мнений), если оно относится к поставленной задаче извлечения информации о революциях 1848-1849 гг. и их восприятии.**
+Убедись, что твой ответ ВСЕГДА является валидным JSON массивом, даже если он пустой (`[]`). Не добавляй никакого текста до или после JSON.
 """
 
 VERIFIER_SYSTEM_PROMPT_STATIC = """
@@ -133,13 +120,12 @@ VERIFIER_SYSTEM_PROMPT_STATIC = """
 3. Карта Знаний для классификации.
 4. Список задач по проверке и коррекции.
 
-Твоя цель - вернуть исправленный JSON-объект.
+Твоя цель - вернуть исправленный JSON-объект. Убедись, что твой ответ ВСЕГДА является валидным JSON объектом. Не добавляй никакого текста до или после JSON.
 """
 # -----------------------------------------------------------------------------
-# МОДЕЛЬ ДАННЫХ (PYDANTIC)
+# МОДЕЛЬ ДАННЫХ (PYDANTIC) (остается без изменений)
 # -----------------------------------------------------------------------------
 class RevolutionEvent(BaseModel):
-    """Определяет структуру данных для одного извлеченного события."""
     entry_id: int = Field(..., description="Идентификатор записи дневника")
     event_id: Optional[str] = Field(None, description="Идентификатор события из Карты Знаний")
     event_name: str = Field("Неклассифицированное событие", description="Название события/аспекта")
@@ -164,23 +150,38 @@ class RevolutionEvent(BaseModel):
     text_fragment: str = Field("Не указано", description="Цитата из текста дневника")
 
 # -----------------------------------------------------------------------------
-# УТИЛИТЫ ДЛЯ РАБОТЫ С API
+# УТИЛИТЫ ДЛЯ РАБОТЫ С API - ИЗМЕНЕНЫ
 # -----------------------------------------------------------------------------
-def initialize_models():
-    """Инициализирует и возвращает модели Gemini для извлечения и верификации."""
-    genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
-    extractor_model = genai.GenerativeModel(
-        model_name=MODEL_NAME,
-        system_instruction=EXTRACTOR_SYSTEM_PROMPT
-    )
-    verifier_model = genai.GenerativeModel(
-        model_name=MODEL_NAME,
-        system_instruction=VERIFIER_SYSTEM_PROMPT_STATIC
-    )
-    return extractor_model, verifier_model
+def initialize_openai_client():
+    """Инициализирует и возвращает клиент OpenAI для Gemini."""
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        logger.critical("Переменная окружения GEMINI_API_KEY не найдена!")
+        raise ValueError("GEMINI_API_KEY не установлен.")
 
-def manage_api_rate_limit():
-    """Управляет частотой запросов к API, чтобы не превышать лимиты."""
+    # Используем base_url для эмуляции OpenAI с Gemini
+    # Важно: убедитесь, что ваш API-ключ Gemini совместим с этим эндпоинтом
+    # и что эндпоинт актуален.
+    client = OpenAI(
+        api_key=api_key,
+        base_url="https://generativelanguage.googleapis.com/v1beta" # OpenAI-compatible endpoint
+    )
+    logger.info("Клиент OpenAI (для Gemini) успешно инициализирован.")
+    return client
+
+# Глобальный клиент, чтобы не создавать его каждый раз
+# Модели extractor_model и verifier_model теперь не нужны в прежнем виде
+openai_client = None
+
+def get_openai_client():
+    """Возвращает инициализированный клиент OpenAI, создавая его при первом вызове."""
+    global openai_client
+    if openai_client is None:
+        openai_client = initialize_openai_client()
+    return openai_client
+
+
+def manage_api_rate_limit(): # Остается без изменений
     global api_calls_counter, last_api_call_time
     current_time = time.time()
     elapsed_time = current_time - last_api_call_time
@@ -198,14 +199,12 @@ def manage_api_rate_limit():
     time.sleep(random.uniform(0.5, 1.5))
 
 # -----------------------------------------------------------------------------
-# УТИЛИТЫ ДЛЯ ОБРАБОТКИ ДАННЫХ
+# УТИЛИТЫ ДЛЯ ОБРАБОТКИ ДАННЫХ (ensure_default_values, load_diary_data - без изменений)
 # -----------------------------------------------------------------------------
 def ensure_default_values(event_dict: Dict[str, Any]) -> Dict[str, Any]:
-    """Гарантирует наличие значений по умолчанию и корректность типов для полей события."""
     if not isinstance(event_dict, dict):
         logger.warning(f"ensure_default_values получил не словарь: {type(event_dict)}. Возвращаем как есть.")
         return event_dict
-
     event_dict["event_name"] = event_dict.get("event_name") or "Неклассифицированное событие"
     event_dict["description"] = event_dict.get("description") or "Не указано"
     event_dict["location"] = event_dict.get("location") or "Не указано"
@@ -215,7 +214,6 @@ def ensure_default_values(event_dict: Dict[str, Any]) -> Dict[str, Any]:
     event_dict["classification_confidence"] = event_dict.get("classification_confidence") or "Medium"
     event_dict["text_fragment"] = event_dict.get("text_fragment") or "Не указано"
     event_dict["keywords"] = event_dict.get("keywords") or []
-
     optional_fields_to_check_for_empty_string = [
         "event_id", "date_in_text", "location_normalized",
         "information_source_type", "event_subtype_custom"
@@ -223,14 +221,13 @@ def ensure_default_values(event_dict: Dict[str, Any]) -> Dict[str, Any]:
     for key in optional_fields_to_check_for_empty_string:
         if key in event_dict and event_dict[key] == "":
             event_dict[key] = None
-
     literal_fields_map = {
         "information_source_type": [
             "Официальные источники (газеты, манифесты)",
             "Неофициальные сведения (слухи, разговоры в обществе)",
             "Личные наблюдения и опыт автора",
             "Информация от конкретного лица (именованный источник)",
-            "Источник неясен/не указан" # Соответствует промпту экстрактора
+            "Источник неясен/не указан"
         ],
         "confidence": ["High", "Medium", "Low"],
         "classification_confidence": ["High", "Medium", "Low"]
@@ -243,7 +240,6 @@ def ensure_default_values(event_dict: Dict[str, Any]) -> Dict[str, Any]:
     return event_dict
 
 def load_diary_data(file_path: str) -> pd.DataFrame:
-    """Загружает данные дневника из CSV-файла."""
     try:
         return pd.read_csv(file_path)
     except Exception as e:
@@ -251,12 +247,11 @@ def load_diary_data(file_path: str) -> pd.DataFrame:
         return pd.DataFrame()
 
 # -----------------------------------------------------------------------------
-# ФУНКЦИИ ИЗВЛЕЧЕНИЯ И ВЕРИФИКАЦИИ ДАННЫХ
+# ФУНКЦИИ ИЗВЛЕЧЕНИЯ И ВЕРИФИКАЦИИ ДАННЫХ - ИЗМЕНЕНЫ
 # -----------------------------------------------------------------------------
-def extract_revolution_events(entry_id: int, text: str, date: str, extractor_model, current_knowledge_map_str: str) -> List[Dict[str, Any]]:
-    """Извлекает события из текста дневниковой записи с помощью LLM."""
+def extract_revolution_events(entry_id: int, text: str, date: str, client: OpenAI, current_knowledge_map_str: str) -> List[Dict[str, Any]]:
     manage_api_rate_limit()
-    prompt = f"""
+    user_prompt = f"""
     Проанализируй следующую запись из дневника (ID: {entry_id}) от {date}:
     "{text}"
 
@@ -268,54 +263,28 @@ def extract_revolution_events(entry_id: int, text: str, date: str, extractor_mod
     Твоя задача - внимательно прочитать текст дневниковой записи и извлечь из него ВСЕ упоминания, ПРЯМО связанные с революциями 1848-1849 гг. в Европе, их последствиями, а также реакцией и восприятием этих событий автором дневника. Для КАЖДОГО такого найденного упоминания (события/аспекта) сформируй JSON-объект со следующими полями:
 
     1.  `entry_id`: Используй предоставленный ID записи: {entry_id}.
-    2.  `event_id`:
-        *   Определи наиболее подходящий ID из предоставленной Карты Знаний.
-        *   Если ни один ID точно не подходит, но упоминание все же связано с революциями 1848-1849 гг., используй 'OTHER_1848'.
-        *   Если подходящий ID не найден, но событие релевантно и относится к OTHER_1848, или если ID не может быть однозначно определен, установи `null`.
-    3.  `event_name`:
-        *   Если `event_id` определен, возьми точное название события/аспекта из Карты Знаний, соответствующее этому `event_id` (без префиксов типа 'Событие:').
-        *   Если `event_id` равен 'OTHER_1848' или `null`, сформулируй краткое (2-5 слов) кастомное название, отражающее суть упоминания.
-    4.  `event_subtype_custom`:
-        *   Если `event_id` или `event_name` слишком общие (например, для категорий _DISCUSS, _GEN, _REFL, _EMO_GENERAL из Карты Знаний, или для `event_id`='OTHER_1848'), предоставь здесь краткое (2-5 слов) уточнение сути события/аспекта, извлеченное непосредственно из текста.
-        *   В остальных случаях установи `null`.
-    5.  `description`:
-        *   Предоставь детальное описание события или аспекта восприятия, СВОИМИ СЛОВАМИ, но строго на основе информации, содержащейся в `text_fragment` и общем контексте записи. Описание должно объяснять, почему это упоминание связано с революциями 1848-1849 гг.
-    6.  `date_in_text`:
-        *   Если в тексте записи явно указана дата, относящаяся к описываемому событию (не дата самой записи), укажи ее здесь.
-        *   В противном случае установи `null`.
-    7.  `source_date`: Используй предоставленную дату дневниковой записи: "{date}".
-    8.  `location`:
-        *   Укажи место события так, как оно упомянуто или подразумевается в тексте.
-        *   Если место не указано или неясно, используй "Не указано".
-    9.  `location_normalized`:
-        *   Укажи нормализованное основное географическое название (город или страна/регион) НА РУССКОМ ЯЗЫКЕ, к которому относится событие. Например, "Франция", "Вена", "Венгрия", "Вологда".
-        *   Если определить невозможно, установи `null`.
-    10. `brief_context`:
-        *   Предоставь очень краткий (1-2 предложения) КОНКРЕТНЫЙ исторический факт, который помогает понять контекст упоминания в дневнике. Это не должно быть пересказом текста дневника или мнением автора.
-        *   Если контекст не требуется или неясен, используй "Не указано".
-    11. `information_source`:
-        *   Опиши источник, из которого автор дневника узнал о событии, как это указано или подразумевается в тексте (например, "газеты", "разговоры с N.", "письмо от брата").
-        *   Если источник не указан, используй "Не указан".
-    12. `information_source_type`:
-        *   Выбери ОДНО из следующих ТОЧНЫХ значений: "{'Официальные источники (газеты, манифесты)', 'Неофициальные сведения (слухи, разговоры в обществе)', 'Личные наблюдения и опыт автора', 'Информация от конкретного лица (именованный источник)', 'Источник неясен/не указан'}".
-        *   Если тип источника неясен или не указан, установи `null`.
-    13. `confidence`:
-        *   Оцени общую уверенность ("High", "Medium", "Low") в корректности всех извлеченных данных для этого события (кроме `event_id` и `classification_confidence`). Учитывай ясность текста, полноту информации.
-    14. `classification_confidence`:
-        *   Оцени уверенность ("High", "Medium", "Low") в правильности присвоенного `event_id`.
-    15. `keywords`:
-        *   Извлеки список из от 3 до 5 ключевых слов или коротких фраз, которые наилучшим образом характеризуют событие/аспект.
-    16. `text_fragment`:
-        *   Извлеки ТОЧНУЮ цитату из текста дневника – ОДНО или НЕСКОЛЬКО ПОЛНЫХ ПРЕДЛОЖЕНИЙ, – которая содержит упоминание о событии и дает достаточный контекст для его понимания. Избегай слишком коротких обрывков.
+    2.  `event_id`: Определи наиболее подходящий ID из Карты Знаний. Если не подходит или неоднозначно, используй 'OTHER_1848' или `null`.
+    3.  `event_name`: Название события из Карты Знаний или кастомное для 'OTHER_1848'/`null`.
+    4.  `event_subtype_custom`: Краткое (2-5 слов) уточнение для общих `event_id` или 'OTHER_1848', иначе `null`.
+    5.  `description`: Детальное описание события/восприятия СВОИМИ СЛОВАМИ на основе текста, объясняющее связь с революциями 1848-1849 гг.
+    6.  `date_in_text`: Явная дата события из текста (не дата записи), иначе `null`.
+    7.  `source_date`: Используй дату записи: "{date}".
+    8.  `location`: Место события из текста. Если неясно, "Не указано".
+    9.  `location_normalized`: Нормализованное место (город/страна) НА РУССКОМ. Если неясно, `null`.
+    10. `brief_context`: Краткий (1-2 предложения) КОНКРЕТНЫЙ исторический факт для контекста (не пересказ дневника). Если не нужно/неясно, "Не указано".
+    11. `information_source`: Источник информации для автора из текста. Если неясно, "Не указан".
+    12. `information_source_type`: ОДНО из: "Официальные источники (газеты, манифесты)", "Неофициальные сведения (слухи, разговоры в обществе)", "Личные наблюдения и опыт автора", "Информация от конкретного лица (именованный источник)", "Источник неясен/не указан". Если неясно, `null`.
+    13. `confidence`: Общая уверенность ("High", "Medium", "Low") в извлеченных данных (кроме классификации).
+    14. `classification_confidence`: Уверенность ("High", "Medium", "Low") в правильности `event_id`.
+    15. `keywords`: Список из 3-5 ключевых слов/фраз.
+    16. `text_fragment`: ТОЧНАЯ цитата (ОДНО ИЛИ НЕСКОЛЬКО ПОЛНЫХ ПРЕДЛОЖЕНИЙ) для контекста.
 
     **СТРОГИЕ КРИТЕРИИ ОТБОРА (ПОВТОРНО):**
     Извлекай ТОЛЬКО упоминания, которые ПРЯМО связаны с революциями 1848-1849 гг. в Европе.
-    ВКЛЮЧАТЬ: Конкретные революционные события, реакции российского правительства, обсуждения в обществе, личные размышления автора о них.
-    НЕ ВКЛЮЧАТЬ: Общие рассуждения о политике без привязки к 1848-1849, события вне этого периода, внутренние российские дела без связи с революциями, бытовые упоминания без революционного контекста.
-    ПРОВЕРОЧНЫЙ ВОПРОС: "Можно ли это упоминание ПРЯМО связать с революциями 1848-1849 гг.?" Если ответ "нет" или "возможно" - НЕ включай.
+    ПРОВЕРОЧНЫЙ ВОПРОС: "Можно ли это упоминание ПРЯМО связать с революциями 1848-1849 гг.?" Если "нет" или "возможно" - НЕ включай.
 
     **ФОРМАТ ОТВЕТА:**
-    Верни ТОЛЬКО JSON массив, содержащий объекты для каждого найденного релевантного события. Если релевантных упоминаний нет, верни пустой JSON массив `[]`.
+    Верни ТОЛЬКО JSON массив объектов. Если нет релевантных событий, верни пустой массив `[]`. JSON должен быть чистым, без каких-либо пояснений до или после.
 
     **ПРИМЕР СТРУКТУРЫ ОДНОГО ОБЪЕКТА В МАССИВЕ (используй как шаблон для каждого найденного события):**
     ```json
@@ -342,45 +311,60 @@ def extract_revolution_events(entry_id: int, text: str, date: str, extractor_mod
     retry_count = 0
     while retry_count < MAX_RETRIES:
         try:
-            response = extractor_model.generate_content(
-                prompt,
-                safety_settings=SAFETY_SETTINGS,
-                generation_config=GenerationConfig(
-                    temperature=0.3,
-                    response_mime_type="application/json"
-                )
+            # В OpenAI API нет reasoning_effort. Если он важен, его нужно эмулировать или использовать другие параметры.
+            # Для Gemini через OpenAI-совместимый эндпоинт он может поддерживаться, но это зависит от эндпоинта.
+            # Я уберу его для большей совместимости с OpenAI API.
+            completion = client.chat.completions.create(
+                model=MODEL_NAME, # Используем глобальную переменную
+                messages=[
+                    {"role": "system", "content": EXTRACTOR_SYSTEM_PROMPT},
+                    {"role": "user", "content": user_prompt}
+                ],
+                temperature=0.3,
+                # response_format={ "type": "json_object" } # Для некоторых моделей OpenAI, может помочь, но не для всех Gemini
             )
-            if response.prompt_feedback and response.prompt_feedback.block_reason:
-                block_reason_value = response.prompt_feedback.block_reason
-                error_message_detail = f"причина: {block_reason_value.name if hasattr(block_reason_value, 'name') else block_reason_value}"
-                logger.error(f"Запись {entry_id}: Промпт экстрактора заблокирован, {error_message_detail}")
-                raise ValueError(f"Blocked prompt for entry_id {entry_id}")
+            # Обработка ответа OpenAI
+            if not completion.choices or not completion.choices[0].message or not completion.choices[0].message.content:
+                logger.error(f"Запись {entry_id}: Некорректный ответ от экстрактора (OpenAI). Ответ: {completion}")
+                raise ValueError(f"No content in extractor response for entry_id {entry_id}")
 
-            if not response.candidates:
-                logger.error(f"Запись {entry_id}: Нет кандидатов в ответе экстрактора.")
-                raise ValueError(f"No candidates in response for entry_id {entry_id}")
+            json_str = completion.choices[0].message.content
 
-            json_str = response.text
-            events = json.loads(json_str)
+            # Попытка извлечь JSON из потенциально "грязного" ответа
+            # Иногда модели могут добавлять ```json ... ``` или другие маркеры
+            try:
+                # Простая очистка от Markdown JSON блока
+                if json_str.strip().startswith("```json"):
+                    json_str = json_str.strip()[7:]
+                    if json_str.strip().endswith("```"):
+                        json_str = json_str.strip()[:-3]
+
+                events = json.loads(json_str.strip())
+            except json.JSONDecodeError as e_inner:
+                logger.error(f"Внутренняя ошибка декодирования JSON от экстрактора (OpenAI) для {entry_id}: {e_inner}. Строка: {json_str}")
+                # Можно попробовать более агрессивную очистку или просто пробросить ошибку
+                raise e_inner # Пробрасываем, чтобы сработал внешний try-except
+
             if not isinstance(events, list):
-                logger.error(f"Экстрактор вернул не список для {entry_id}. Тип: {type(events)}. Ответ: {events}")
-                raise TypeError("LLM returned non-list for event extraction")
+                logger.error(f"Экстрактор (OpenAI) вернул не список для {entry_id}. Тип: {type(events)}. Ответ: {events}")
+                raise TypeError("LLM (OpenAI) returned non-list for event extraction")
             return events
-        except json.JSONDecodeError as e:
-            logger.error(f"Ошибка декодирования JSON от экстрактора для {entry_id}: {e}. Строка: {json_str}")
+
+        except json.JSONDecodeError as e: # Эта ошибка будет поймана, если json.loads(json_str.strip()) не сработает
+            logger.error(f"Ошибка декодирования JSON от экстрактора (OpenAI) для {entry_id}: {e}. Строка: {json_str if 'json_str' in locals() else 'Не удалось получить json_str'}")
             if retry_count >= MAX_RETRIES -1: raise
         except Exception as e:
             retry_count += 1
-            logger.warning(f"Ошибка экстракции для {entry_id} (попытка {retry_count}/{MAX_RETRIES}): {str(e)}")
+            logger.warning(f"Ошибка экстракции (OpenAI) для {entry_id} (попытка {retry_count}/{MAX_RETRIES}): {str(e)}")
+            # traceback.print_exc() # Для детальной отладки можно раскомментировать
             if retry_count < MAX_RETRIES:
                 time.sleep(RETRY_WAIT_BASE * retry_count)
             else:
-                logger.error(f"Превышены попытки экстракции для {entry_id}. Пропускаем.")
+                logger.error(f"Превышены попытки экстракции (OpenAI) для {entry_id}. Пропускаем.")
                 return []
     return []
 
-def verify_event(event_data: Dict[str, Any], verifier_model, full_text: str, current_knowledge_map_str: str) -> Dict[str, Any]:
-    """Верифицирует и корректирует извлеченное событие с помощью LLM."""
+def verify_event(event_data: Dict[str, Any], client: OpenAI, full_text: str, current_knowledge_map_str: str) -> Dict[str, Any]:
     manage_api_rate_limit()
     if not isinstance(event_data, dict):
         logger.error(f"verify_event получил не словарь: {type(event_data)}.")
@@ -407,72 +391,73 @@ def verify_event(event_data: Dict[str, Any], verifier_model, full_text: str, cur
         *   Проверь `event_id`: должен точно соответствовать Карте Знаний и содержанию `text_fragment`. Исправь при необходимости.
         *   Проверь `event_name`: должен соответствовать названию из Карты Знаний для выбранного `event_id` или быть осмысленным кастомным названием для 'OTHER_1848'/null.
         *   Оцени и при необходимости скорректируй `classification_confidence`.
-
     2.  **Содержание и Текстовая Основа:**
         *   Проверь `description`: должно точно и полно отражать информацию из `text_fragment`.
         *   Проверь `text_fragment`: должен содержать одно или несколько **полных** предложений из оригинального текста, дающих достаточный контекст.
         *   Проверь `keywords`: должны быть релевантными ключевыми словами.
-
     3.  **Атрибуты События:**
         *   Проверь `event_subtype_custom`: если `event_id` общий, должно быть краткое (2-5 слов) уточнение из текста. Иначе `null`.
         *   Проверь `location` (из текста) и `location_normalized` (нормализованное, русский язык, город/страна, или `null`).
         *   Проверь `date_in_text`: явная дата события из текста, или `null`.
-
     4.  **Источник Информации:**
         *   Проверь `information_source` (описание из текста).
         *   Проверь `information_source_type`: должно быть ОДНИМ из ТОЧНЫХ значений: "Официальные источники (газеты, манифесты)", "Неофициальные сведения (слухи, разговоры в обществе)", "Личные наблюдения и опыт автора", "Информация от конкретного лица (именованный источник)", "Источник неясен/не указан". Если неясно/неверно, установи `null`.
-
     5.  **Контекст и Общая Уверенность:**
         *   Проверь `brief_context`: должен быть **конкретным историческим фактом** (1-2 предложения), а не мнением или пересказом. Если нерелевантно, "Не указано".
         *   Оцени и при необходимости скорректируй `confidence` (общая уверенность в данных, кроме классификации).
 
     **Формат ответа:**
-    Верни исправленную версию события ТОЛЬКО в формате JSON объекта. Не добавляй никакого текста до или после JSON.
+    Верни исправленную версию события ТОЛЬКО в формате JSON объекта. JSON должен быть чистым, без каких-либо пояснений до или после.
     """
 
     retry_count = 0
     while retry_count < MAX_RETRIES:
         try:
-            response = verifier_model.generate_content(
-                user_prompt_for_verifier,
-                safety_settings=SAFETY_SETTINGS,
-                generation_config=GenerationConfig(
-                    temperature=0.5,
-                    response_mime_type="application/json"
-                )
+            completion = client.chat.completions.create(
+                model=MODEL_NAME,
+                messages=[
+                    {"role": "syste", "content": VERIFIER_SYSTEM_PROMPT_STATIC},
+                    {"role": "user", "content": user_prompt_for_verifier}
+                ],
+                temperature=0.5,
             )
-            if response.prompt_feedback and response.prompt_feedback.block_reason:
-                block_reason_value = response.prompt_feedback.block_reason
-                error_message_detail = f"причина: {block_reason_value.name if hasattr(block_reason_value, 'name') else block_reason_value}"
-                logger.error(f"Верификация для entry_id {event_data.get('entry_id')}: Промпт верификатора заблокирован, {error_message_detail}")
-                raise ValueError("Blocked prompt for verification")
+            if not completion.choices or not completion.choices[0].message or not completion.choices[0].message.content:
+                logger.error(f"Верификация для entry_id {event_data.get('entry_id')}: Некорректный ответ от верификатора (OpenAI).")
+                raise ValueError("No content in verifier response")
 
-            if not response.candidates:
-                logger.error(f"Верификация для entry_id {event_data.get('entry_id')}: Нет кандидатов в ответе верификатора.")
-                raise ValueError("No candidates in response for verification")
+            json_str = completion.choices[0].message.content
 
-            json_str = response.text
-            verified_event = json.loads(json_str)
+            try:
+                if json_str.strip().startswith("```json"):
+                    json_str = json_str.strip()[7:]
+                    if json_str.strip().endswith("```"):
+                        json_str = json_str.strip()[:-3]
+                verified_event = json.loads(json_str.strip())
+            except json.JSONDecodeError as e_inner:
+                logger.error(f"Внутренняя ошибка декодирования JSON от верификатора (OpenAI) для {event_data.get('entry_id')}: {e_inner}. Строка: {json_str}")
+                raise e_inner
+
+
             if not isinstance(verified_event, dict):
-                logger.error(f"Верификатор вернул не словарь для entry_id {event_data.get('entry_id')}. Тип: {type(verified_event)}. Ответ: {verified_event}")
-                raise TypeError("Verifier returned non-dict")
+                logger.error(f"Верификатор (OpenAI) вернул не словарь для entry_id {event_data.get('entry_id')}. Тип: {type(verified_event)}. Ответ: {verified_event}")
+                raise TypeError("Verifier (OpenAI) returned non-dict")
 
             if verified_event.get('event_id') != original_event_id:
-                logger.info(f"Верификатор изменил event_id с '{original_event_id}' на '{verified_event.get('event_id')}' для entry_id {event_data.get('entry_id')}")
+                logger.info(f"Верификатор (OpenAI) изменил event_id с '{original_event_id}' на '{verified_event.get('event_id')}' для entry_id {event_data.get('entry_id')}")
             if verified_event.get('text_fragment') != original_text_fragment:
-                logger.info(f"Верификатор изменил text_fragment для entry_id {event_data.get('entry_id')}")
+                logger.info(f"Верификатор (OpenAI) изменил text_fragment для entry_id {event_data.get('entry_id')}")
 
             return ensure_default_values(verified_event)
         except json.JSONDecodeError as e:
-            logger.error(f"Ошибка декодирования JSON от верификатора для entry_id {event_data.get('entry_id')}: {e}. Строка: {json_str}")
+            logger.error(f"Ошибка декодирования JSON от верификатора (OpenAI) для entry_id {event_data.get('entry_id')}: {e}. Строка: {json_str if 'json_str' in locals() else 'Не удалось получить json_str'}")
             if retry_count >= MAX_RETRIES - 1: return event_data_to_verify
         except Exception as e:
             retry_count += 1
-            logger.warning(f"Ошибка верификации для entry_id {event_data.get('entry_id')} (попытка {retry_count}/{MAX_RETRIES}): {str(e)}")
+            logger.warning(f"Ошибка верификации (OpenAI) для entry_id {event_data.get('entry_id')} (попытка {retry_count}/{MAX_RETRIES}): {str(e)}")
             if retry_count < MAX_RETRIES:
                 time.sleep(RETRY_WAIT_BASE * retry_count)
             else:
-                logger.error(f"Превышены попытки верификации для entry_id {event_data.get('entry_id')}. Возвращаем исходное событие.")
+                logger.error(f"Превышены попытки верификации (OpenAI) для entry_id {event_data.get('entry_id')}. Возвращаем исходное событие.")
                 return event_data_to_verify
     return event_data_to_verify
 
@@ -480,17 +465,18 @@ def verify_event(event_data: Dict[str, Any], verifier_model, full_text: str, cur
 # ОСНОВНАЯ ФУНКЦИЯ ОБРАБОТКИ ДНЕВНИКА
 # -----------------------------------------------------------------------------
 def process_diary():
-    """Основной конвейер обработки дневниковых записей."""
     data = load_diary_data(DATA_PATH)
     if data.empty:
         logger.error("Не удалось загрузить данные дневника или файл пуст. Завершение работы.")
         return
 
-    logger.info("Инициализация моделей LLM...")
+    logger.info("Инициализация OpenAI клиента для Gemini...")
     try:
-        extractor_model, verifier_model = initialize_models()
+        # Клиент теперь инициализируется при первом вызове get_openai_client()
+        # или можно инициализировать его здесь один раз:
+        client = get_openai_client()
     except Exception as e:
-        logger.critical(f"Критическая ошибка при инициализации моделей: {e}. Завершение работы.")
+        logger.critical(f"Критическая ошибка при инициализации OpenAI клиента: {e}. Завершение работы.")
         return
 
     all_events: List[Dict[str, Any]] = []
@@ -581,7 +567,8 @@ def process_diary():
                 continue
 
         try:
-            extracted_events_data = extract_revolution_events(current_entry_id, current_text, current_date, extractor_model, knowledge_map_for_prompt)
+            # Передаем openai_client вместо extractor_model/verifier_model
+            extracted_events_data = extract_revolution_events(current_entry_id, current_text, current_date, client, knowledge_map_for_prompt)
             processed_entry_events = []
 
             for event_item_data in extracted_events_data:
@@ -592,7 +579,7 @@ def process_diary():
                 event_item_data['entry_id'] = current_entry_id
                 event_item_data['source_date'] = current_date
 
-                verified_event_item_data = verify_event(event_item_data, verifier_model, current_text, knowledge_map_for_prompt)
+                verified_event_item_data = verify_event(event_item_data, client, current_text, knowledge_map_for_prompt)
 
                 if not isinstance(verified_event_item_data, dict):
                     logger.warning(f"Верификатор вернул не-словарь для {current_entry_id}: {verified_event_item_data}.")
@@ -657,11 +644,13 @@ def process_diary():
 # ТОЧКА ВХОДА
 # -----------------------------------------------------------------------------
 if __name__ == "__main__":
-    logger.info("Запуск скрипта обработки дневника...")
+    logger.info("Запуск скрипта обработки дневника (через OpenAI-совместимый API)...")
     try:
+        # Инициализируем клиент один раз перед циклом
+        # get_openai_client() теперь можно не вызывать в цикле, если он уже инициализирован в process_diary
         process_diary()
     except Exception as e:
         logger.critical(f"Неперехваченная ошибка на верхнем уровне: {e}")
         logger.exception("Полный traceback неперехваченной ошибки:")
     finally:
-        logger.info("Работа скрипта завершена.")
+        logger.info("Работа скрипта (OpenAI-совместимый API) завершена.")
