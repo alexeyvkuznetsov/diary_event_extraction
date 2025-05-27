@@ -37,11 +37,12 @@ FINAL_RESULTS_FILE = "results/revolution_events_openai.json" # Изменено 
 
 # MODEL_NAME используется теперь внутри вызовов OpenAI клиента
 #MODEL_NAME = "gpt-4o" # Укажите актуальную модель
-#MODEL_NAME = "claude-3-7-sonnet-20250219"
+MODEL_NAME = "claude-3-7-sonnet-20250219"
 #MODEL_NAME = "deepseek-v3-0324"
 #MODEL_NAME = "o3"
+#MODEL_NAME = "o3-high"
 #MODEL_NAME = "o4-mini-high"
-MODEL_NAME = "gpt-4.1-mini"
+#MODEL_NAME = "gpt-4.1-mini"
 
 API_CALLS_PER_MINUTE = 12 # Оставляем для manage_api_rate_limit
 MAX_RETRIES = 3
