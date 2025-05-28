@@ -311,7 +311,7 @@ def extract_revolution_events_single_pass(entry_id: int, text: str, date: str, c
                     {"role": "system", "content": EXTRACTOR_SYSTEM_PROMPT},
                     {"role": "user", "content": user_prompt}
                 ],
-                temperature=0.1, # Низкая температура для точности
+                temperature=0.2, # Низкая температура для точности
                 response_format={ "type": "json_object" } # Раскомментировать, если ваша модель это поддерживает и это улучшает результат
             )
             if not completion.choices or not completion.choices[0].message or not completion.choices[0].message.content:

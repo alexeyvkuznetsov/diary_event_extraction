@@ -66,7 +66,7 @@
         "id": "REV1848_EUR_CONTEXT",
         "name": "Общеевропейский контекст",
         "children": [
-          { "id": "REV1848_EUR_CONTEXT_GEN", "name": "Общие упоминания Веснаы народов, беспорядков на Западе" },
+          { "id": "REV1848_EUR_CONTEXT_GEN", "name": "Общие упоминания Весны народов, беспорядков на Западе" },
           { "id": "REV1848_EUR_CONTEXT_NEWS", "name": "Распространение новостей/слухов о революциях" }
         ]
       }
@@ -82,7 +82,7 @@
         "children": [
           { "id": "RU_REACTION_FOREIGN_DIPLO", "name": "Дипломатические действия / Заявления" },
           { "id": "RU_REACTION_FOREIGN_MANIFEST", "name": "Манифесты о вмешательстве / войне" },
-          { "id": "RU_REACTION_FOREIGN_INTERV", "name": "Военная интервенция (с уточнением региона, кроме Дунайских княжеств - см. REV1848_OTH_ROM_RUS_INT)" },
+          { "id": "RU_REACTION_FOREIGN_INTERV", "name": "Военная интервенция (с уточнением региона)" },
           { "id": "RU_REACTION_FOREIGN_MOBIL", "name": "Мобилизация / Передвижение войск" },
           { "id": "RU_REACTION_FOREIGN_RECRUIT", "name": "Рекрутские наборы (связанные с войной)" }
         ]
