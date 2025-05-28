@@ -36,10 +36,10 @@ TEMP_RESULTS_FILE = "results/revolution_events_temp_openai.json" # Измене�
 FINAL_RESULTS_FILE = "results/revolution_events_openai.json" # Изменено имя
 
 # MODEL_NAME используется теперь внутри вызовов OpenAI клиента
-#MODEL_NAME = "gpt-4o" # Укажите актуальную модель
+MODEL_NAME = "gpt-4o" # Укажите актуальную модель
 #MODEL_NAME = "claude-3-7-sonnet-20250219"
 #MODEL_NAME = "mistral-medium-2505"
-MODEL_NAME = "mistral-large-2407"
+#MODEL_NAME = "mistral-large-2407"
 #MODEL_NAME = "o3"
 #MODEL_NAME = "o3-high"
 #MODEL_NAME = "o4-mini-high"
@@ -258,7 +258,7 @@ def load_diary_data(file_path: str) -> pd.DataFrame:
         return pd.DataFrame()
 
 # -----------------------------------------------------------------------------
-# ФУНКЦИИ ИЗВЛЕЧЕНИЯ И ВЕРИФИКАЦИИ ДАННЫХ - ИЗМЕНЕНЫ
+# ФУНКЦИИ ИЗВЛЕЧЕНИЯ И ВЕРИФИКАЦИИ ДАННЫХ
 # -----------------------------------------------------------------------------
 def extract_revolution_events(entry_id: int, text: str, date: str, client: OpenAI, current_knowledge_map_str: str) -> List[Dict[str, Any]]:
     manage_api_rate_limit()
@@ -332,7 +332,7 @@ def extract_revolution_events(entry_id: int, text: str, date: str, client: OpenA
                     {"role": "system", "content": EXTRACTOR_SYSTEM_PROMPT},
                     {"role": "user", "content": user_prompt}
                 ],
-                temperature=0.2,
+                temperature=0.1,
                 # response_format={ "type": "json_object" } # Для некоторых моделей OpenAI, может помочь, но не для всех Gemini
             )
             # Обработка ответа OpenAI
@@ -431,7 +431,7 @@ def verify_event(event_data: Dict[str, Any], client: OpenAI, full_text: str, cur
                     {"role": "system", "content": VERIFIER_SYSTEM_PROMPT_STATIC},
                     {"role": "user", "content": user_prompt_for_verifier}
                 ],
-                temperature=0.4,
+                temperature=0.3,
             )
             if not completion.choices or not completion.choices[0].message or not completion.choices[0].message.content:
                 logger.error(f"Верификация для entry_id {event_data.get('entry_id')}: Некорректный ответ от верификатора (OpenAI).")
