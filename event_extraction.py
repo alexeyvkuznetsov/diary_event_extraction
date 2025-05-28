@@ -30,7 +30,7 @@ load_dotenv()
 
 DATA_PATH = "data/diary_with_id.csv"
 KNOWLEDGE_MAP_PATH = "knowledge_map.json" # Путь к JSON-файлу с картой знаний
-TEMP_DIR = "temp_single_pass"
+TEMP_DIR = "temp"
 LAST_PROCESSED_FILE = "last_processed_openai_single_pass.txt"
 TEMP_RESULTS_FILE = "results/revolution_events_temp_openai_single_pass.json"
 FINAL_RESULTS_FILE = "results/revolution_events_openai_single_pass.json"
