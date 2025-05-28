@@ -1,6 +1,6 @@
 import pandas as pd
 import json
-from openai import OpenAI # Используем OpenAI SDK
+from openai import OpenAI
 from pydantic import BaseModel, Field
 from typing import List, Optional, Literal, Dict, Any
 import time
@@ -39,14 +39,14 @@ FINAL_RESULTS_FILE = "results/revolution_events_openai_single_pass.json"
 #MODEL_NAME = "claude-3-7-sonnet-20250219"
 #MODEL_NAME = "mistral-medium-2505"
 #MODEL_NAME = "mistral-large-2407"
-#MODEL_NAME = "o3"
+MODEL_NAME = "o3"
 #MODEL_NAME = "o3-high"
-MODEL_NAME = "o4-mini-high"
+#MODEL_NAME = "o4-mini-high"
 #MODEL_NAME = "gpt-4.1-mini"
 
-API_CALLS_PER_MINUTE = 12
-MAX_RETRIES = 3
-RETRY_WAIT_BASE = 20
+API_CALLS_PER_MINUTE = 12 # Лимит запросов к API в минуту
+MAX_RETRIES = 3 # Максимальное количество повторных попыток
+RETRY_WAIT_BASE = 20 # Базовое время ожидания перед повтором (секунды)
 
 api_calls_counter = 0
 last_api_call_time = time.time()
@@ -55,6 +55,7 @@ last_api_call_time = time.time()
 # ЗАГРУЗКА И ФОРМАТИРОВАНИЕ КАРТЫ ЗНАНИЙ
 # -----------------------------------------------------------------------------
 def format_knowledge_node_for_prompt(node: Dict[str, Any], indent_level: int = 0) -> str:
+    """Рекурсивно форматирует узел карты знаний из JSON в текстовый вид для промпта."""
     indent = "    " * indent_level
     name_prefix = "**" if indent_level == 0 else "*"
     name_suffix = "**" if indent_level == 0 else "*"
@@ -67,12 +68,14 @@ def format_knowledge_node_for_prompt(node: Dict[str, Any], indent_level: int = 0
     return line
 
 def load_and_format_knowledge_map(file_path: str) -> str:
+    """Загружает карту знаний из JSON и преобразует в текстовый формат для LLM."""
     try:
         with open(file_path, 'r', encoding='utf-8') as f:
             structured_map = json.load(f)
         if not isinstance(structured_map, list):
             logger.error(f"Карта Знаний в {file_path} должна быть списком JSON объектов.")
             raise ValueError("Неверный формат корневого элемента Карты Знаний.")
+        # Заголовок для текстового представления карты
         formatted_string = "**Универсальная Карта Знаний для Классификации Событий и Восприятий (Революции 1848-1849 гг.):**\n\n"
         for top_level_node in structured_map:
             formatted_string += format_knowledge_node_for_prompt(top_level_node, indent_level=0)
@@ -85,7 +88,7 @@ def load_and_format_knowledge_map(file_path: str) -> str:
         logger.error(f"Ошибка декодирования JSON в файле Карты Знаний: {file_path}")
         raise
     except Exception as e:
-        logger.error(f"Непредвиденная ошибка при загрузке и форматировании Карты Знаний: {e}")
+        logger.error(f"Непредвиденная ошибка при загрузке Карты Знаний: {e}")
         logger.exception("Traceback ошибки форматирования карты:")
         raise
 
@@ -114,12 +117,11 @@ EXTRACTOR_SYSTEM_PROMPT = """
 Убедись, что твой ответ ВСЕГДА является валидным JSON массивом, даже если он пустой (`[]`). Не добавляй никакого текста до или после JSON. Тщательно проверяй соответствие всех полей запрашиваемой структуре.
 """
 
-# VERIFIER_SYSTEM_PROMPT_STATIC БОЛЬШЕ НЕ НУЖЕН
-
 # -----------------------------------------------------------------------------
-# МОДЕЛЬ ДАННЫХ (PYDANTIC) - остается прежней
+# МОДЕЛЬ ДАННЫХ (PYDANTIC)
 # -----------------------------------------------------------------------------
 class RevolutionEvent(BaseModel):
+    """Определяет структуру данных для одного извлеченного события."""
     entry_id: int = Field(..., description="Идентификатор записи дневника")
     event_id: Optional[str] = Field(None, description="Идентификатор события из Карты Знаний")
     event_name: str = Field("Неклассифицированное событие", description="Название события/аспекта")
@@ -144,11 +146,11 @@ class RevolutionEvent(BaseModel):
     text_fragment: str = Field("Не указано", description="Цитата из текста дневника")
 
 # -----------------------------------------------------------------------------
-# УТИЛИТЫ ДЛЯ РАБОТЫ С API - ИЗМЕНЕНА ИНИЦИАЛИЗАЦИЯ
+# УТИЛИТЫ ДЛЯ РАБОТЫ С API
 # -----------------------------------------------------------------------------
-def initialize_openai_client_single(): # Переименована для ясности
-    """Инициализирует и возвращает клиент OpenAI (используется как экстрактор)."""
-    api_key = os.getenv("FORGET_API_KEY") # Убедитесь, что эта переменная установлена
+def initialize_openai_client_single():
+    """Инициализирует и возвращает клиент OpenAI."""
+    api_key = os.getenv("FORGET_API_KEY")
     if not api_key:
         logger.critical("Переменная окружения FORGET_API_KEY не найдена!")
         raise ValueError("FORGET_API_KEY не установлен.")
@@ -160,15 +162,17 @@ def initialize_openai_client_single(): # Переименована для яс�
     logger.info("Клиент OpenAI (для экстракции) успешно инициализирован.")
     return client
 
-openai_extractor_client = None # Глобальный клиент для экстрактора
+openai_extractor_client = None
 
 def get_openai_extractor_client():
+    """Возвращает инициализированный клиент OpenAI, создавая его при первом вызове."""
     global openai_extractor_client
     if openai_extractor_client is None:
         openai_extractor_client = initialize_openai_client_single()
     return openai_extractor_client
 
-def manage_api_rate_limit(): # Остается без изменений
+def manage_api_rate_limit():
+    """Управляет частотой запросов к API."""
     global api_calls_counter, last_api_call_time
     current_time = time.time()
     elapsed_time = current_time - last_api_call_time
@@ -186,9 +190,10 @@ def manage_api_rate_limit(): # Остается без изменений
     time.sleep(random.uniform(0.5, 1.5))
 
 # -----------------------------------------------------------------------------
-# УТИЛИТЫ ДЛЯ ОБРАБОТКИ ДАННЫХ (ensure_default_values, load_diary_data - остаются без изменений)
+# УТИЛИТЫ ДЛЯ ОБРАБОТКИ ДАННЫХ
 # -----------------------------------------------------------------------------
 def ensure_default_values(event_dict: Dict[str, Any]) -> Dict[str, Any]:
+    """Гарантирует наличие значений по умолчанию и корректность типов для полей события."""
     if not isinstance(event_dict, dict):
         logger.warning(f"ensure_default_values получил не словарь: {type(event_dict)}. Возвращаем как есть.")
         return event_dict
@@ -227,6 +232,7 @@ def ensure_default_values(event_dict: Dict[str, Any]) -> Dict[str, Any]:
     return event_dict
 
 def load_diary_data(file_path: str) -> pd.DataFrame:
+    """Загружает данные дневника из CSV-файла."""
     try:
         return pd.read_csv(file_path)
     except Exception as e:
@@ -234,13 +240,11 @@ def load_diary_data(file_path: str) -> pd.DataFrame:
         return pd.DataFrame()
 
 # -----------------------------------------------------------------------------
-# ФУНКЦИЯ ИЗВЛЕЧЕНИЯ ДАННЫХ - ИЗМЕНЕНА (без верификации LLM)
+# ФУНКЦИЯ ИЗВЛЕЧЕНИЯ ДАННЫХ (ОДНОПРОХОДНАЯ)
 # -----------------------------------------------------------------------------
 def extract_revolution_events_single_pass(entry_id: int, text: str, date: str, client: OpenAI, current_knowledge_map_str: str) -> List[Dict[str, Any]]:
+    """Извлекает события из текста с помощью LLM за один проход."""
     manage_api_rate_limit()
-    # Промпт остается тем же, что и для extract_revolution_events в предыдущей версии,
-    # так как он уже детально описывает все поля для извлечения.
-    # Важно, чтобы этот промпт был максимально качественным.
     user_prompt = f"""
     Проанализируй следующую запись из дневника (ID: {entry_id}) от {date}:
     "{text}"
@@ -307,7 +311,7 @@ def extract_revolution_events_single_pass(entry_id: int, text: str, date: str, c
                     {"role": "system", "content": EXTRACTOR_SYSTEM_PROMPT},
                     {"role": "user", "content": user_prompt}
                 ],
-                temperature=0.1, # Очень низкая температура для максимальной точности
+                temperature=0.1, # Низкая температура для точности
                 response_format={ "type": "json_object" } # Раскомментировать, если ваша модель это поддерживает и это улучшает результат
             )
             if not completion.choices or not completion.choices[0].message or not completion.choices[0].message.content:
@@ -316,6 +320,7 @@ def extract_revolution_events_single_pass(entry_id: int, text: str, date: str, c
 
             json_str = completion.choices[0].message.content
             try:
+                # Попытка очистки JSON от Markdown-блоков
                 if json_str.strip().startswith("```json"):
                     json_str = json_str.strip()[7:]
                     if json_str.strip().endswith("```"):
@@ -330,9 +335,9 @@ def extract_revolution_events_single_pass(entry_id: int, text: str, date: str, c
                 raise TypeError("LLM (OpenAI single-pass) returned non-list for event extraction")
             return events
 
-        except json.JSONDecodeError as e:
+        except json.JSONDecodeError as e: # Ловим ошибку декодирования, если она проброшена из внутреннего try-except
             logger.error(f"Ошибка декодирования JSON (OpenAI single-pass) для {entry_id}: {e}. Строка: {json_str if 'json_str' in locals() else 'Не удалось получить json_str'}")
-            if retry_count >= MAX_RETRIES -1: raise
+            if retry_count >= MAX_RETRIES -1: raise # Пробрасываем, если все попытки исчерпаны
         except Exception as e:
             retry_count += 1
             logger.warning(f"Ошибка экстракции (OpenAI single-pass) для {entry_id} (попытка {retry_count}/{MAX_RETRIES}): {str(e)}")
@@ -340,15 +345,14 @@ def extract_revolution_events_single_pass(entry_id: int, text: str, date: str, c
                 time.sleep(RETRY_WAIT_BASE * retry_count)
             else:
                 logger.error(f"Превышены попытки экстракции (OpenAI single-pass) для {entry_id}. Пропускаем.")
-                return []
-    return []
-
-# ФУНКЦИЯ verify_event БОЛЬШЕ НЕ НУЖНА И УДАЛЕНА
+                return [] # Возвращаем пустой список
+    return [] # Возвращаем пустой список, если цикл завершился без успеха
 
 # -----------------------------------------------------------------------------
-# ОСНОВНАЯ ФУНКЦИЯ ОБРАБОТКИ ДНЕВНИКА - ИЗМЕНЕНА
+# ОСНОВНАЯ ФУНКЦИЯ ОБРАБОТКИ ДНЕВНИКА
 # -----------------------------------------------------------------------------
 def process_diary():
+    """Основной конвейер обработки дневниковых записей."""
     data = load_diary_data(DATA_PATH)
     if data.empty:
         logger.error("Не удалось загрузить данные дневника или файл пуст. Завершение работы.")
@@ -356,7 +360,7 @@ def process_diary():
 
     logger.info("Инициализация OpenAI клиента...")
     try:
-        client = get_openai_extractor_client() # Используем тот же клиент, но теперь он единственный
+        client = get_openai_extractor_client()
     except Exception as e:
         logger.critical(f"Критическая ошибка при инициализации OpenAI клиента: {e}. Завершение работы.")
         return
@@ -408,7 +412,7 @@ def process_diary():
             continue
 
         logger.info(f"Обработка записи {current_entry_id} от {current_date} ...")
-        temp_file_path = os.path.join(TEMP_DIR, f"entry_single_pass_{current_entry_id}.json") # Новое имя temp файла
+        temp_file_path = os.path.join(TEMP_DIR, f"entry_single_pass_{current_entry_id}.json")
 
         if os.path.exists(temp_file_path):
             logger.info(f"Запись {current_entry_id} уже обработана, загружаем...")
@@ -428,7 +432,7 @@ def process_diary():
                             try:
                                 evt_data['entry_id'] = evt_data.get('entry_id', current_entry_id)
                                 evt_data['source_date'] = evt_data.get('source_date', current_date)
-                                validated_event = RevolutionEvent(**ensure_default_values(evt_data)) # Используем старую Pydantic модель
+                                validated_event = RevolutionEvent(**ensure_default_values(evt_data))
                                 all_events.append(validated_event.model_dump())
                                 existing_event_keys.add(key)
                                 newly_added_count += 1
@@ -438,7 +442,7 @@ def process_diary():
                     logger.info(f"Добавлено {newly_added_count} событий из temp-файла для {current_entry_id}.")
             except Exception as e:
                 logger.warning(f"Ошибка загрузки temp-файла {temp_file_path}: {e}. Обрабатываем заново.")
-            else: # Если загрузка из temp-файла прошла успешно
+            else:
                 try:
                     with open(TEMP_RESULTS_FILE, "w", encoding="utf-8") as f_temp_save:
                         json.dump(all_events, f_temp_save, ensure_ascii=False, indent=2)
@@ -449,7 +453,6 @@ def process_diary():
                 continue
 
         try:
-            # Этап верификации LLM теперь отсутствует
             extracted_events_data = extract_revolution_events_single_pass(current_entry_id, current_text, current_date, client, knowledge_map_for_prompt)
             processed_entry_events = []
 
@@ -458,18 +461,15 @@ def process_diary():
                     logger.warning(f"Экстрактор вернул не-словарь для {current_entry_id}: {event_item_data}.")
                     continue
 
-                # Применяем ensure_default_values и Pydantic-валидацию сразу к результату экстрактора
                 event_item_data['entry_id'] = current_entry_id
                 event_item_data['source_date'] = current_date
 
                 try:
-                    # Валидируем сразу после ensure_default_values
                     validated_event = RevolutionEvent(**ensure_default_values(event_item_data))
                     processed_entry_events.append(validated_event.model_dump())
                 except Exception as e_pydantic:
                     logger.error(f"Ошибка Pydantic для события из {current_entry_id}: {str(e_pydantic)}")
                     logger.debug(f"Данные события (Pydantic ошибка): {event_item_data}")
-                    # Можно добавить попытку исправления, если необходимо, но для упрощения пока опустим
 
             try:
                 with open(temp_file_path, "w", encoding="utf-8") as f_entry_temp:
@@ -485,7 +485,7 @@ def process_diary():
                 with open(LAST_PROCESSED_FILE, "w") as f_last_proc:
                     f_last_proc.write(str(current_entry_id))
             except IOError as e_save_main:
-                 logger.error(f"Ошибка сохр. основного состояния после {current_entry_id}: {e_save_main}")
+                 logger.error(f"Ошибка сохр. основного состояния  после {current_entry_id}: {e_save_main}")
 
             logger.info(f"Запись {current_entry_id} обработана. Найдено {len(processed_entry_events)} событий.")
 
@@ -511,7 +511,7 @@ def process_diary():
 # ТОЧКА ВХОДА
 # -----------------------------------------------------------------------------
 if __name__ == "__main__":
-    logger.info("Запуск скрипта обработки дневника (ОДНОПРОХОДНЫЙ режим через OpenAI-совместимый API)...")
+    logger.info("Запуск скрипта обработки дневника (OpenAI-совместимый API)...")
     try:
         process_diary()
     except Exception as e:
