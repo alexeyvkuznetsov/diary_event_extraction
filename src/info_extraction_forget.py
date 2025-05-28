@@ -37,8 +37,9 @@ FINAL_RESULTS_FILE = "results/revolution_events_openai.json" # Изменено 
 
 # MODEL_NAME используется теперь внутри вызовов OpenAI клиента
 #MODEL_NAME = "gpt-4o" # Укажите актуальную модель
-MODEL_NAME = "claude-3-7-sonnet-20250219"
-#MODEL_NAME = "deepseek-v3-0324"
+#MODEL_NAME = "claude-3-7-sonnet-20250219"
+#MODEL_NAME = "mistral-medium-2505"
+MODEL_NAME = "mistral-large-2407"
 #MODEL_NAME = "o3"
 #MODEL_NAME = "o3-high"
 #MODEL_NAME = "o4-mini-high"
@@ -326,6 +327,7 @@ def extract_revolution_events(entry_id: int, text: str, date: str, client: OpenA
             # Я уберу его для большей совместимости с OpenAI API.
             completion = client.chat.completions.create(
                 model=MODEL_NAME, # Используем глобальную переменную
+                #reasoning_effort = "high",
                 messages=[
                     {"role": "system", "content": EXTRACTOR_SYSTEM_PROMPT},
                     {"role": "user", "content": user_prompt}
