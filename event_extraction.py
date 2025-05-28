@@ -1,3 +1,5 @@
+# ПОСЛЕДНЯЯ УСТОЙЧИВАЯ ВЕРСИЯ НА 1=х КЛИЕНТЕ для FORGET API
+
 import pandas as pd
 import json
 from openai import OpenAI

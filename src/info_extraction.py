@@ -1,3 +1,5 @@
+# ПОСЛЕДНЯЯ УСТОЙЧИВАЯ ВЕРСИЯ НА 2=х КЛИЕНТАХ
+
 import pandas as pd
 import json
 import google.generativeai as genai

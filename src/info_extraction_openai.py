@@ -1,3 +1,5 @@
+# ПОСЛЕДНЯЯ УСТОЙЧИВАЯ ВЕРСИЯ НА 2=х КЛИЕНТАХ для GOOGLE
+
 import pandas as pd
 import json
 from openai import OpenAI # <-- Изменение
