@@ -8,7 +8,7 @@ from typing import List, Optional, Literal, Dict, Any
 import time
 import os
 import random
-import traceback
+#import traceback
 from dotenv import load_dotenv
 import logging
 
@@ -126,7 +126,7 @@ class RevolutionEvent(BaseModel):
     """Определяет структуру данных для одного извлеченного события."""
     entry_id: int = Field(..., description="Идентификатор записи дневника")
     event_id: Optional[str] = Field(None, description="Идентификатор события из Карты Знаний")
-    event_name: str = Field("Неклассифицированное событие", description="Название события/аспекта")
+    event_name: str = Field("Неклассифицированное событие", description="Название события/аспекта из Карты Знаний")
     event_subtype_custom: Optional[str] = Field(None, description="Кастомное уточнение типа события")
     description: str = Field("Не указано", description="Описание события на основе текста дневника")
     date_in_text: Optional[str] = Field(None, description="Дата события, упомянутая в тексте")
