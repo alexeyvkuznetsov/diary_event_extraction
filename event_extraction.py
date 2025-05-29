@@ -39,9 +39,9 @@ FINAL_RESULTS_FILE = "results/revolution_events_openai_single_pass.json"
 
 #MODEL_NAME = "gpt-4o" # Укажите актуальную модель для OpenAI-совместимого API
 #MODEL_NAME = "claude-3-7-sonnet-20250219"
-#MODEL_NAME = "mistral-medium-2505"
+MODEL_NAME = "mistral-medium-2505"
 #MODEL_NAME = "mistral-large-2407"
-MODEL_NAME = "o3"
+#MODEL_NAME = "o3"
 #MODEL_NAME = "o3-high"
 #MODEL_NAME = "o4-mini-high"
 #MODEL_NAME = "gpt-4.1-mini"
