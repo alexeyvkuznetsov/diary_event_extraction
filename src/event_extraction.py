@@ -49,7 +49,7 @@ API_KEY = os.getenv("FORGET_API_KEY")
 #MODEL_NAME = "mistral-large-2407"
 #MODEL_NAME = "o1"
 #MODEL_NAME = "o3"
-#MODEL_NAME = "o3-high"
+MODEL_NAME = "o3-high"
 
 #MODEL_NAME = "gemini-1.5-pro"
 #MODEL_NAME = "grok-3-latest"
@@ -57,7 +57,7 @@ API_KEY = os.getenv("FORGET_API_KEY")
 #MODEL_NAME = "claude-opus-4-20250514-thinking"
 #MODEL_NAME = "claude-opus-4-20250514"
 #MODEL_NAME = "gemini-2.5-pro-preview-05-06"
-MODEL_NAME = "Qwen/Qwen3-235B-A22B"
+#MODEL_NAME = "Qwen/Qwen3-235B-A22B"
 
 #MODEL_NAME = "models/gemini-2.5-flash-preview-05-20" # Укажите актуальную модель
 #MODEL_NAME = "models/gemini-2.5-flash-preview-04-17"
@@ -326,12 +326,12 @@ def extract_revolution_events(entry_id: int, text: str, date: str, client: OpenA
         try:
             completion = client.chat.completions.create(
                 model=MODEL_NAME,
-                #reasoning={"effort": "medium"} # для моделе GPT с рассуждением (low, medium, high)
+                #reasoning={"effort": "medium"}, # для моделе GPT с рассуждением (low, medium, high)
                 messages=[
                     {"role": "system", "content": EXTRACTOR_SYSTEM_PROMPT},
                     {"role": "user", "content": user_prompt}
                 ],
-                temperature=0.2, # Низкая температура для точности
+                temperature=0.1, # Низкая температура для точности
                 max_tokens=16000,
                 #response_format={ "type": "json_object" } # Раскомментировать, если ваша модель это поддерживает и это улучшает результат
             )
