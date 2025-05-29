@@ -326,6 +326,7 @@ def extract_revolution_events(entry_id: int, text: str, date: str, client: OpenA
         try:
             completion = client.chat.completions.create(
                 model=MODEL_NAME,
+                #reasoning={"effort": "medium"} # для моделе GPT с рассуждением (low, medium, high)
                 messages=[
                     {"role": "system", "content": EXTRACTOR_SYSTEM_PROMPT},
                     {"role": "user", "content": user_prompt}
