@@ -52,8 +52,9 @@ API_KEY = os.getenv("FORGET_API_KEY")
 #MODEL_NAME = "o3-high"
 #MODEL_NAME = "o4-mini-high"
 #MODEL_NAME = "gpt-4.1-mini"
+
 #MODEL_NAME = "gpt-4.5-preview"
-MODEL_NAME = "claude-opus-4-20250514-thinking"
+MODEL_NAME = "gemini-2.5-pro-preview-05-06"
 
 #MODEL_NAME = "models/gemini-2.5-flash-preview-05-20" # Укажите актуальную модель
 #MODEL_NAME = "models/gemini-2.5-flash-preview-04-17"
