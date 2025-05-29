@@ -1,4 +1,4 @@
-# НЕ ПОСЛЕДНЯЯ УСТОЙЧИВАЯ ВЕРСИЯ НА 1=х КЛИЕНТЕ для FORGET API
+# ПОСЛЕДНЯЯ УСТОЙЧИВАЯ ВЕРСИЯ НА 1=х КЛИЕНТЕ для FORGET API
 
 import pandas as pd
 import json
@@ -19,7 +19,7 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(module)s - %(funcName)s - %(message)s',
     handlers=[
-        logging.FileHandler("processing_openai_single_pass.log", mode='a', encoding='utf-8'),
+        logging.FileHandler("processing.log", mode='a', encoding='utf-8'),
         logging.StreamHandler()
     ]
 )
@@ -33,9 +33,9 @@ load_dotenv()
 DATA_PATH = "data/diary_with_id.csv"
 KNOWLEDGE_MAP_PATH = "knowledge_map.json" # Путь к JSON-файлу с картой знаний
 TEMP_DIR = "temp"
-LAST_PROCESSED_FILE = "last_processed_openai_single_pass.txt"
-TEMP_RESULTS_FILE = "results/revolution_events_temp_openai_single_pass.json"
-FINAL_RESULTS_FILE = "results/revolution_events_openai_single_pass.json"
+LAST_PROCESSED_FILE = "last_processed_openai.txt"
+TEMP_RESULTS_FILE = "results/revolution_events_temp.json"
+FINAL_RESULTS_FILE = "results/revolution_events.json"
 
 #MODEL_NAME = "gpt-4o" # Укажите актуальную модель для OpenAI-совместимого API
 #MODEL_NAME = "claude-3-7-sonnet-20250219"
@@ -244,7 +244,7 @@ def load_diary_data(file_path: str) -> pd.DataFrame:
 # -----------------------------------------------------------------------------
 # ФУНКЦИЯ ИЗВЛЕЧЕНИЯ ДАННЫХ (ОДНОПРОХОДНАЯ)
 # -----------------------------------------------------------------------------
-def extract_revolution_events_single_pass(entry_id: int, text: str, date: str, client: OpenAI, current_knowledge_map_str: str) -> List[Dict[str, Any]]:
+def extract_revolution_events(entry_id: int, text: str, date: str, client: OpenAI, current_knowledge_map_str: str) -> List[Dict[str, Any]]:
     """Извлекает события из текста с помощью LLM за один проход."""
     manage_api_rate_limit()
     user_prompt = f"""
@@ -414,7 +414,7 @@ def process_diary():
             continue
 
         logger.info(f"Обработка записи {current_entry_id} от {current_date} ...")
-        temp_file_path = os.path.join(TEMP_DIR, f"entry_single_pass_{current_entry_id}.json")
+        temp_file_path = os.path.join(TEMP_DIR, f"entry_{current_entry_id}.json")
 
         if os.path.exists(temp_file_path):
             logger.info(f"Запись {current_entry_id} уже обработана, загружаем...")
@@ -455,7 +455,7 @@ def process_diary():
                 continue
 
         try:
-            extracted_events_data = extract_revolution_events_single_pass(current_entry_id, current_text, current_date, client, knowledge_map_for_prompt)
+            extracted_events_data = extract_revolution_events(current_entry_id, current_text, current_date, client, knowledge_map_for_prompt)
             processed_entry_events = []
 
             for event_item_data in extracted_events_data:
