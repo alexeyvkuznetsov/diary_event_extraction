@@ -53,8 +53,10 @@ API_KEY = os.getenv("FORGET_API_KEY")
 #MODEL_NAME = "o4-mini-high"
 #MODEL_NAME = "gpt-4.1-mini"
 
-#MODEL_NAME = "gpt-4.5-preview"
-MODEL_NAME = "gemini-2.5-pro-preview-05-06"
+MODEL_NAME = "gpt-4.5-preview"
+#MODEL_NAME = "claude-opus-4-20250514-thinking"
+#MODEL_NAME = "claude-opus-4-20250514"
+#MODEL_NAME = "gemini-2.5-pro-preview-05-06"
 
 #MODEL_NAME = "models/gemini-2.5-flash-preview-05-20" # Укажите актуальную модель
 #MODEL_NAME = "models/gemini-2.5-flash-preview-04-17"
@@ -327,7 +329,7 @@ def extract_revolution_events(entry_id: int, text: str, date: str, client: OpenA
                     {"role": "system", "content": EXTRACTOR_SYSTEM_PROMPT},
                     {"role": "user", "content": user_prompt}
                 ],
-                temperature=0.2, # Низкая температура для точности
+                temperature=0.1, # Низкая температура для точности
                 max_tokens=16000,
                 #response_format={ "type": "json_object" } # Раскомментировать, если ваша модель это поддерживает и это улучшает результат
             )
