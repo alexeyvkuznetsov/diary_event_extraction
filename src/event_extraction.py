@@ -33,18 +33,28 @@ load_dotenv()
 DATA_PATH = "data/diary_with_id.csv"
 KNOWLEDGE_MAP_PATH = "knowledge_map.json" # Путь к JSON-файлу с картой знаний
 TEMP_DIR = "temp"
-LAST_PROCESSED_FILE = "last_processed_openai.txt"
+LAST_PROCESSED_FILE = "last_processed.txt"
 TEMP_RESULTS_FILE = "results/revolution_events_temp.json"
 FINAL_RESULTS_FILE = "results/revolution_events.json"
 
+#ASE_URL = "https://forgetapi.ru/v1"
+BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
+
+#API_KEY = os.getenv("FORGET_API_KEY")
+API_KEY = os.getenv("GEMINI_API_KEY")
+
 #MODEL_NAME = "gpt-4o" # Укажите актуальную модель для OpenAI-совместимого API
 #MODEL_NAME = "claude-3-7-sonnet-20250219"
-MODEL_NAME = "mistral-medium-2505"
+#MODEL_NAME = "mistral-medium-2505"
 #MODEL_NAME = "mistral-large-2407"
 #MODEL_NAME = "o3"
 #MODEL_NAME = "o3-high"
 #MODEL_NAME = "o4-mini-high"
 #MODEL_NAME = "gpt-4.1-mini"
+
+MODEL_NAME = "models/gemini-2.5-flash-preview-05-20" # Укажите актуальную модель
+#MODEL_NAME = "models/gemini-2.5-flash-preview-04-17"
+#MODEL_NAME = "models/gemini-2.0-flash"
 
 API_CALLS_PER_MINUTE = 12 # Лимит запросов к API в минуту
 MAX_RETRIES = 3 # Максимальное количество повторных попыток
@@ -152,14 +162,14 @@ class RevolutionEvent(BaseModel):
 # -----------------------------------------------------------------------------
 def initialize_openai_client_single():
     """Инициализирует и возвращает клиент OpenAI."""
-    api_key = os.getenv("FORGET_API_KEY")
+    api_key = API_KEY
     if not api_key:
-        logger.critical("Переменная окружения FORGET_API_KEY не найдена!")
-        raise ValueError("FORGET_API_KEY не установлен.")
+        logger.critical("Переменная окружения API_KEY не найдена!")
+        raise ValueError("API_KEY не установлен.")
 
     client = OpenAI(
         api_key=api_key,
-        base_url="https://forgetapi.ru/v1"
+        base_url=BASE_URL
     )
     logger.info("Клиент OpenAI (для экстракции) успешно инициализирован.")
     return client
