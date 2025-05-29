@@ -47,6 +47,7 @@ API_KEY = os.getenv("GEMINI_API_KEY")
 #MODEL_NAME = "claude-3-7-sonnet-20250219"
 #MODEL_NAME = "mistral-medium-2505"
 #MODEL_NAME = "mistral-large-2407"
+#MODEL_NAME = "o1"
 #MODEL_NAME = "o3"
 #MODEL_NAME = "o3-high"
 #MODEL_NAME = "o4-mini-high"
