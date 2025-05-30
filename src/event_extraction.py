@@ -49,14 +49,16 @@ API_KEY = os.getenv("FORGET_API_KEY")
 #MODEL_NAME = "mistral-large-2407"
 #MODEL_NAME = "o1"
 #MODEL_NAME = "o3"
-MODEL_NAME = "o3-high"
+
+
+#MODEL_NAME = "o3-high"
 
 #MODEL_NAME = "gemini-1.5-pro"
 #MODEL_NAME = "grok-3-latest"
 #MODEL_NAME = "gpt-4.5-preview"
 #MODEL_NAME = "claude-opus-4-20250514-thinking"
 #MODEL_NAME = "claude-opus-4-20250514"
-#MODEL_NAME = "gemini-2.5-pro-preview-05-06"
+MODEL_NAME = "gemini-2.5-pro-preview-05-06"
 #MODEL_NAME = "Qwen/Qwen3-235B-A22B"
 
 #MODEL_NAME = "models/gemini-2.5-flash-preview-05-20" # Укажите актуальную модель
@@ -117,7 +119,7 @@ knowledge_map_for_prompt = load_and_format_knowledge_map(KNOWLEDGE_MAP_PATH)
 # СИСТЕМНЫЙ ПРОМПТ ДЛЯ ЭКСТРАКТОРА
 # -----------------------------------------------------------------------------
 EXTRACTOR_SYSTEM_PROMPT = """
-Ты высокоточный историк-аналитик, специализирующийся на истории Европы и России XIX века, с особым фокусом на анализе личного восприятия событий.
+Ты высококвалифицированный историк-аналитик, специализирующийся на истории Европы и России XIX века, с особым фокусом на анализе личного восприятия событий.
 Твоя задача - предельно точно и внимательно анализировать тексты дневниковых записей этого периода.
 Извлекай из них упоминания о событиях, связанных *ТОЛЬКО* с революциями 1848-1849 гг. в Европе и их последствиями, а также детально анализируй восприятие этих событий автором дневника.
 Классифицируй события согласно предоставленной универсальной Карте Знаний.
@@ -326,14 +328,14 @@ def extract_revolution_events(entry_id: int, text: str, date: str, client: OpenA
         try:
             completion = client.chat.completions.create(
                 model=MODEL_NAME,
-                #reasoning={"effort": "medium"}, # для моделе GPT с рассуждением (low, medium, high)
+                # reasoning={"effort": "medium"}, # для моделе GPT с рассуждением (low, medium, high)
                 messages=[
                     {"role": "system", "content": EXTRACTOR_SYSTEM_PROMPT},
                     {"role": "user", "content": user_prompt}
                 ],
                 temperature=0.1, # Низкая температура для точности
                 max_tokens=16000,
-                #response_format={ "type": "json_object" } # Раскомментировать, если ваша модель это поддерживает и это улучшает результат
+                # response_format={ "type": "json_object" } # Раскомментировать, если ваша модель это поддерживает и это улучшает результат
             )
             if not completion.choices or not completion.choices[0].message or not completion.choices[0].message.content:
                 logger.error(f"Запись {entry_id}: Некорректный ответ от экстрактора (OpenAI single-pass). Ответ: {completion}")
