@@ -54,12 +54,12 @@ API_KEY = os.getenv("FORGET_API_KEY")
 #MODEL_NAME = "o3-high"
 
 #MODEL_NAME = "gemini-1.5-pro"
-#MODEL_NAME = "grok-3-latest"
+MODEL_NAME = "grok-3-latest"
 #MODEL_NAME = "gpt-4.5-preview"
 #MODEL_NAME = "claude-opus-4-20250514-thinking"
 #MODEL_NAME = "claude-opus-4-20250514"
 #MODEL_NAME = "gemini-2.5-pro-preview-05-06"
-MODEL_NAME = "Qwen/Qwen3-235B-A22B"
+#MODEL_NAME = "Qwen/Qwen3-235B-A22B"
 
 #MODEL_NAME = "models/gemini-2.5-flash-preview-05-20" # Укажите актуальную модель
 #MODEL_NAME = "models/gemini-2.5-flash-preview-04-17"
@@ -338,7 +338,7 @@ def extract_revolution_events(entry_id: int, text: str, date: str, client: OpenA
                 ],
                 temperature=0.1, # Низкая температура для точности
                 max_tokens=20000,
-                # response_format={ "type": "json_object" } # Раскомментировать, если ваша модель это поддерживает и это улучшает результат
+                response_format={ "type": "json_object" } # Раскомментировать, если ваша модель это поддерживает и это улучшает результат
             )
             if not completion.choices or not completion.choices[0].message or not completion.choices[0].message.content:
                 logger.error(f"Запись {entry_id}: Некорректный ответ от экстрактора (OpenAI single-pass). Ответ: {completion}")
