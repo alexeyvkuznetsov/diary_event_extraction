@@ -424,7 +424,7 @@ def extract_revolution_events(entry_id: int, text: str, date: str, client: OpenA
                     {"role": "user", "content": user_prompt}
                 ],
                 temperature=TEMPERATURE,
-                max_tokens=20000,
+                #max_tokens=20000,
                 response_format={ "type": "json_object" } # Раскомментировать, если ваша модель это поддерживает и это улучшает результат
             )
             if not completion.choices or not completion.choices[0].message or not completion.choices[0].message.content:
