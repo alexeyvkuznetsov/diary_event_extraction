@@ -58,11 +58,11 @@ API_KEY = os.getenv("FORGET_API_KEY")
 #MODEL_NAME = "gpt-4.1"
 #MODEL_NAME = "grok-3-latest"
 #MODEL_NAME = "gpt-4.5-preview"
-#MODEL_NAME = "claude-opus-4-20250514-thinking"
+MODEL_NAME = "claude-sonnet-4-20250514-thinking"
 
 #MODEL_NAME = "deepseek-v3"
 
-MODEL_NAME = "gemini-2.5-pro-preview-05-06"
+#MODEL_NAME = "gemini-2.5-pro-preview-05-06"
 
 #MODEL_NAME = "Qwen/Qwen3-235B-A22B"
 
@@ -72,9 +72,9 @@ MODEL_NAME = "gemini-2.5-pro-preview-05-06"
 #MODEL_NAME = "models/gemini-1.5-flash"
 
 
-TEMPERATURE = 0.2
+TEMPERATURE = 1
 
-API_CALLS_PER_MINUTE = 8
+API_CALLS_PER_MINUTE = 20
 MAX_RETRIES = 3
 RETRY_WAIT_BASE = 20
 
@@ -425,7 +425,7 @@ def extract_revolution_events(entry_id: int, text: str, date: str, client: OpenA
                 ],
                 temperature=TEMPERATURE,
                 #max_tokens=20000,
-                response_format={ "type": "json_object" } # Раскомментировать, если ваша модель это поддерживает и это улучшает результат
+                #response_format={ "type": "json_object" } # Раскомментировать, если ваша модель это поддерживает и это улучшает результат
             )
             if not completion.choices or not completion.choices[0].message or not completion.choices[0].message.content:
                 logger.error(f"Запись {entry_id}: Некорректный ответ от экстрактора. Ответ: {completion}")
@@ -685,11 +685,11 @@ def process_diary():
 # ТОЧКА ВХОДА
 # -----------------------------------------------------------------------------
 if __name__ == "__main__":
-    logger.info("Запуск скрипта v3 обработки дневника с УЛУЧШЕННОЙ ПОСТ-ОБРАБОТКОЙ JSON и <think> тегов...")
+    logger.info("Запуск скрипта обработки дневника с ПОСТ-ОБРАБОТКОЙ JSON и <think> тегов...")
     try:
         process_diary()
     except Exception as e:
         logger.critical(f"Неперехваченная ошибка на верхнем уровне: {e}")
         logger.exception("Полный traceback неперехваченной ошибки:")
     finally:
-        logger.info("Работа скрипта v3 с УЛУЧШЕННОЙ ПОСТ-ОБРАБОТКОЙ JSON и <think> тегов завершена.")
+        logger.info("Работа скрипта с ПОСТ-ОБРАБОТКОЙ JSON и <think> тегов завершена.")

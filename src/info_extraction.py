@@ -59,11 +59,11 @@ API_KEY = os.getenv("FORGET_API_KEY")
 #MODEL_NAME = "gemini-2.0-flash"
 #MODEL_NAME = "grok-3-latest"
 #MODEL_NAME = "gpt-4.5-preview"
-#MODEL_NAME = "claude-opus-4-20250514-thinking"
+MODEL_NAME = "claude-sonnet-4-20250514-thinking"
 #MODEL_NAME = "claude-opus-4-20250514"
 #MODEL_NAME = "gemini-2.5-pro-preview-05-06"
 
-MODEL_NAME = "gemini-2.5-pro-preview-06-05"
+#MODEL_NAME = "gemini-2.5-pro-preview-06-05"
 
 #MODEL_NAME = "Qwen/Qwen3-235B-A22B"
 
@@ -75,7 +75,7 @@ MODEL_NAME = "gemini-2.5-pro-preview-06-05"
 
 
 
-TEMPERATURE = 0.1 # Снижаем температуру для большей точности и следования примерам
+TEMPERATURE = 1 # Снижаем температуру для большей точности и следования примерам
 
 API_CALLS_PER_MINUTE = 20
 MAX_RETRIES = 3
@@ -435,6 +435,7 @@ def extract_revolution_events(entry_id: int, text: str, date: str, client: OpenA
                     {"role": "user", "content": user_prompt}
                 ],
                 temperature=TEMPERATURE,
+                #reasoning_effort = "high", # для моделей Google (low, medium, high)
                 #reasoning={"effort": "medium"}, # для моделе GPT с рассуждением (low, medium, high)
                 #max_tokens=20000, # Увеличено для более сложных моделей, если требуется больше места для ответа
                 response_format={ "type": "json_object" } # Раскомментировать, если модель поддерживает и это улучшает результат
@@ -643,11 +644,11 @@ def process_diary():
 # ТОЧКА ВХОДА
 # -----------------------------------------------------------------------------
 if __name__ == "__main__":
-    logger.info("Запуск УЛУЧШЕННОГО скрипта обработки дневника (OpenAI-совместимый API)...")
+    logger.info("Запуск скрипта обработки дневника (OpenAI-совместимый API)...")
     try:
         process_diary()
     except Exception as e:
         logger.critical(f"Неперехваченная ошибка на верхнем уровне: {e}")
         logger.exception("Полный traceback неперехваченной ошибки:")
     finally:
-        logger.info("Работа УЛУЧШЕННОГО скрипта (OpenAI-совместимый API) завершена.")
+        logger.info("Работа скрипта (OpenAI-совместимый API) завершена.")
