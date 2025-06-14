@@ -53,12 +53,12 @@ API_KEY = os.getenv("FORGET_API_KEY")
 #MODEL_NAME = "o3-high"
 
 
-#MODEL_NAME = "o4-mini-high"
+MODEL_NAME = "o4-mini-high"
 
 #MODEL_NAME = "gpt-4.1"
 #MODEL_NAME = "grok-3-latest"
 #MODEL_NAME = "gpt-4.5-preview"
-MODEL_NAME = "claude-sonnet-4-20250514-thinking"
+#MODEL_NAME = "claude-sonnet-4-20250514-thinking"
 
 #MODEL_NAME = "deepseek-v3"
 
@@ -425,7 +425,7 @@ def extract_revolution_events(entry_id: int, text: str, date: str, client: OpenA
                 ],
                 temperature=TEMPERATURE,
                 #max_tokens=20000,
-                #response_format={ "type": "json_object" } # Раскомментировать, если ваша модель это поддерживает и это улучшает результат
+                response_format={ "type": "json_object" } # Раскомментировать, если ваша модель это поддерживает и это улучшает результат
             )
             if not completion.choices or not completion.choices[0].message or not completion.choices[0].message.content:
                 logger.error(f"Запись {entry_id}: Некорректный ответ от экстрактора. Ответ: {completion}")
