@@ -72,7 +72,7 @@ MODEL_NAME = "claude-sonnet-4-20250514-thinking"
 #MODEL_NAME = "models/gemini-1.5-flash"
 
 
-TEMPERATURE = 1
+TEMPERATURE = 0.1
 
 API_CALLS_PER_MINUTE = 20
 MAX_RETRIES = 3
