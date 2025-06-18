@@ -46,7 +46,7 @@ API_KEY = os.getenv("FORGET_API_KEY")
 
 #MODEL_NAME = "gpt-4o" # Укажите актуальную модель для OpenAI-совместимого API
 
-#MODEL_NAME = "mistral-medium-2505"
+MODEL_NAME = "mistral-medium-2505"
 #MODEL_NAME = "mistral-large-2407"
 
 
@@ -63,7 +63,7 @@ API_KEY = os.getenv("FORGET_API_KEY")
 #MODEL_NAME = "claude-opus-4-20250514"
 
 #MODEL_NAME = "o4-mini-high"
-MODEL_NAME = "gpt-4.1"
+#MODEL_NAME = "gpt-4.1"
 
 #MODEL_NAME = "gemini-2.5-pro-preview-06-05"
 
