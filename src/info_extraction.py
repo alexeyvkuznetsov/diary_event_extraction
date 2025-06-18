@@ -37,16 +37,16 @@ LAST_PROCESSED_FILE = "last_processed.txt" # Новый файл для отсл
 TEMP_RESULTS_FILE = "results/revolution_events_temp.json" # Новый временный файл результатов
 FINAL_RESULTS_FILE = "results/revolution_events.json" # Новый финальный файл результатов
 
-BASE_URL = "https://forgetapi.ru/v1"
-#BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
+#BASE_URL = "https://forgetapi.ru/v1"
+BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
 
-API_KEY = os.getenv("FORGET_API_KEY")
-#API_KEY = os.getenv("GEMINI_API_KEY")
+#API_KEY = os.getenv("FORGET_API_KEY")
+API_KEY = os.getenv("GEMINI_API_KEY")
 
 
 #MODEL_NAME = "gpt-4o" # Укажите актуальную модель для OpenAI-совместимого API
 
-MODEL_NAME = "mistral-medium-2505"
+#MODEL_NAME = "mistral-medium-2505"
 #MODEL_NAME = "mistral-large-2407"
 
 
@@ -69,7 +69,7 @@ MODEL_NAME = "mistral-medium-2505"
 
 #MODEL_NAME = "Qwen/Qwen3-235B-A22B"
 
-#MODEL_NAME = "models/gemini-2.5-flash" # Укажите актуальную модель
+MODEL_NAME = "models/gemini-2.5-flash" # Укажите актуальную модель
 #MODEL_NAME = "models/gemini-2.0-flash"
 #MODEL_NAME = "models/gemini-1.5-flash"
 
@@ -78,7 +78,7 @@ MODEL_NAME = "mistral-medium-2505"
 
 TEMPERATURE = 0.1 # Снижаем температуру для большей точности и следования примерам
 
-API_CALLS_PER_MINUTE = 30
+API_CALLS_PER_MINUTE = 9
 MAX_RETRIES = 3
 RETRY_WAIT_BASE = 20
 
@@ -439,7 +439,7 @@ def extract_revolution_events(entry_id: int, text: str, date: str, client: OpenA
                     {"role": "user", "content": user_prompt}
                 ],
                 temperature=TEMPERATURE,
-                #reasoning_effort = "high", # для моделей Google (low, medium, high)
+                reasoning_effort = "high", # для моделей Google (low, medium, high)
                 #reasoning={"effort": "medium"}, # для моделе GPT с рассуждением (low, medium, high)
                 #max_tokens=20000, # Увеличено для более сложных моделей, если требуется больше места для ответа
                 response_format={ "type": "json_object" } # Раскомментировать, если модель поддерживает и это улучшает результат
