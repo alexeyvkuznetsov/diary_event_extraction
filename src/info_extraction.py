@@ -37,11 +37,11 @@ LAST_PROCESSED_FILE = "last_processed.txt" # Новый файл для отсл
 TEMP_RESULTS_FILE = "results/revolution_events_temp.json" # Новый временный файл результатов
 FINAL_RESULTS_FILE = "results/revolution_events.json" # Новый финальный файл результатов
 
-BASE_URL = "https://forgetapi.ru/v1"
-#BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
+#BASE_URL = "https://forgetapi.ru/v1"
+BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
 
-API_KEY = os.getenv("FORGET_API_KEY")
-#API_KEY = os.getenv("GEMINI_API_KEY")
+#API_KEY = os.getenv("FORGET_API_KEY")
+API_KEY = os.getenv("GEMINI_API_KEY")
 
 
 #MODEL_NAME = "gpt-4o" # Укажите актуальную модель для OpenAI-совместимого API
@@ -58,26 +58,27 @@ API_KEY = os.getenv("FORGET_API_KEY")
 
 #MODEL_NAME = "gemini-2.0-flash"
 #MODEL_NAME = "grok-3-latest"
-#MODEL_NAME = "gpt-4.5-preview"
-MODEL_NAME = "claude-sonnet-4-20250514-thinking"
+
+#MODEL_NAME = "claude-sonnet-4-20250514-thinking"
 #MODEL_NAME = "claude-opus-4-20250514"
-#MODEL_NAME = "gemini-2.5-pro-preview-05-06"
+
+#MODEL_NAME = "o4-mini-high"
+#MODEL_NAME = "gpt-4.1"
 
 #MODEL_NAME = "gemini-2.5-pro-preview-06-05"
 
 #MODEL_NAME = "Qwen/Qwen3-235B-A22B"
 
-#MODEL_NAME = "models/gemini-2.5-flash-preview-05-20" # Укажите актуальную модель
-#MODEL_NAME = "models/gemini-2.5-flash-preview-04-17"
+MODEL_NAME = "models/gemini-2.5-flash" # Укажите актуальную модель
 #MODEL_NAME = "models/gemini-2.0-flash"
 #MODEL_NAME = "models/gemini-1.5-flash"
 
 
 
 
-TEMPERATURE = 1 # Снижаем температуру для большей точности и следования примерам
+TEMPERATURE = 0.1 # Снижаем температуру для большей точности и следования примерам
 
-API_CALLS_PER_MINUTE = 20
+API_CALLS_PER_MINUTE = 9
 MAX_RETRIES = 3
 RETRY_WAIT_BASE = 20
 
@@ -130,6 +131,7 @@ knowledge_map_for_prompt = load_and_format_knowledge_map(KNOWLEDGE_MAP_PATH)
 EXTRACTOR_SYSTEM_PROMPT = """
 Ты высококвалифицированный историк-аналитик, специализирующийся на истории Европы и России XIX века, с особым фокусом на анализе личного восприятия событий.
 Твоя задача - предельно точно и внимательно анализировать тексты дневниковых записей этого периода.
+Твой анализ проводится в рамках исследования "Эхо 'Весны народов' в российской провинции: восприятие событий 1848-1849 гг. в дневнике Кирилла Березкина".
 Извлекай из них упоминания о событиях, связанных *ТОЛЬКО* с революциями 1848-1849 гг. в Европе и их последствиями, а также детально анализируй восприятие этих событий автором дневника.
 Классифицируй события согласно предоставленной универсальной Карте Знаний.
 Учитывай исторический контекст:
@@ -418,7 +420,17 @@ def extract_revolution_events(entry_id: int, text: str, date: str, client: OpenA
 
     **СТРОГИЕ КРИТЕРИИ ОТБОРА (ПОВТОРНО):**
     Извлекай ТОЛЬКО упоминания, которые ПРЯМО связаны с революциями 1848-1849 гг. в Европе.
-    ПРОВЕРОЧНЫЙ ВОПРОС: "Можно ли это упоминание ПРЯМО связать с революциями 1848-1849 гг.?" Если "нет" или "возможно" - НЕ включай.
+
+    **НЕ ВКЛЮЧАТЬ:**
+    - Общие рассуждения о политике без привязки к 1848-1849 гг.
+    - События до 1848 или после 1849 года
+    - Внутренние российские события, не связанные с европейскими революциями
+    - Бытовые упоминания европейских стран без революционного контекста
+    - Абстрактные философские размышления о свободе, власти и т.д.
+    - Литературные или культурные события без политического контекста 1848-1849 гг.
+
+    **ДОПОЛНИТЕЛЬНАЯ ПРОВЕРКА:**
+    Перед включением каждого упоминания задай себе вопрос: "Можно ли это упоминание ПРЯМО связать с революционными событиями 1848-1849 гг. в Европе?" Если ответ "нет" или "возможно" - НЕ включай.
 
     {few_shot_examples}
 
@@ -435,7 +447,7 @@ def extract_revolution_events(entry_id: int, text: str, date: str, client: OpenA
                     {"role": "user", "content": user_prompt}
                 ],
                 temperature=TEMPERATURE,
-                #reasoning_effort = "high", # для моделей Google (low, medium, high)
+                reasoning_effort = "high", # для моделей Google (low, medium, high)
                 #reasoning={"effort": "medium"}, # для моделе GPT с рассуждением (low, medium, high)
                 #max_tokens=20000, # Увеличено для более сложных моделей, если требуется больше места для ответа
                 response_format={ "type": "json_object" } # Раскомментировать, если модель поддерживает и это улучшает результат
