@@ -37,11 +37,12 @@ LAST_PROCESSED_FILE = "last_processed.txt" # Новый файл для отсл
 TEMP_RESULTS_FILE = "results/revolution_events_temp.json" # Новый временный файл результатов
 FINAL_RESULTS_FILE = "results/revolution_events.json" # Новый финальный файл результатов
 
-BASE_URL = "https://forgetapi.ru/v1"
-#BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
+#BASE_URL = "https://forgetapi.ru/v1"
+#API_KEY = os.getenv("FORGET_API_KEY")
 
-API_KEY = os.getenv("FORGET_API_KEY")
-#API_KEY = os.getenv("GEMINI_API_KEY")
+
+BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
+API_KEY = os.getenv("GEMINI_API_KEY")
 
 
 #MODEL_NAME = "gpt-4o" # Укажите актуальную модель для OpenAI-совместимого API
@@ -65,7 +66,7 @@ API_KEY = os.getenv("FORGET_API_KEY")
 #MODEL_NAME = "o4-mini-high"
 #MODEL_NAME = "gpt-4.1"
 
-MODEL_NAME = "gemini-2.5-pro-preview-06-05"
+MODEL_NAME = "gemini-2.5-pro"
 
 #MODEL_NAME = "Qwen/Qwen3-235B-A22B"
 
@@ -78,7 +79,7 @@ MODEL_NAME = "gemini-2.5-pro-preview-06-05"
 
 TEMPERATURE = 0.1 # Снижаем температуру для большей точности и следования примерам
 
-API_CALLS_PER_MINUTE = 9
+API_CALLS_PER_MINUTE = 5
 MAX_RETRIES = 3
 RETRY_WAIT_BASE = 20
 
