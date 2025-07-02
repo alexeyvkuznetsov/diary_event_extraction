@@ -37,10 +37,16 @@ LAST_PROCESSED_FILE = "last_processed.txt" # Новый файл для отсл
 TEMP_RESULTS_FILE = "results/revolution_events_temp.json" # Новый временный файл результатов
 FINAL_RESULTS_FILE = "results/revolution_events.json" # Новый финальный файл результатов
 
+# -----------------------------------------------------------------------------
+# API от forgetapi.ru
+# -----------------------------------------------------------------------------
 
 #BASE_URL = "https://forgetapi.ru/v1"
 #API_KEY = os.getenv("FORGET_API_KEY")
 
+# -----------------------------------------------------------------------------
+# API от GOOGLE
+# -----------------------------------------------------------------------------
 
 BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
 API_KEY = os.getenv("GEMINI_API_KEY")
