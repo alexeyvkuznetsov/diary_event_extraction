@@ -429,6 +429,8 @@ def extract_revolution_events(entry_id: int, text: str, date: str, client: OpenA
     **ФОРМАТ ОТВЕТА:**
     Верни **ТОЛЬКО JSON массив объектов**. Если нет релевантных событий, верни пустой массив `[]`. JSON должен быть чистым, без каких-либо пояснений до или после.
     """
+
+
     retry_count = 0
     while retry_count < MAX_RETRIES:
         try:
@@ -441,7 +443,7 @@ def extract_revolution_events(entry_id: int, text: str, date: str, client: OpenA
                 temperature=TEMPERATURE,
                 reasoning_effort = "high", # для моделей Google (low, medium, high)
                 #reasoning={"effort": "medium"}, # для моделе GPT с рассуждением (low, medium, high)
-                #max_tokens=20000, # Увеличено для более сложных моделей, если требуется больше места для ответа
+                max_tokens=20000, # Увеличено для более сложных моделей, если требуется больше места для ответа
                 response_format={ "type": "json_object" } # Раскомментировать, если модель поддерживает и это улучшает результат
             )
             if not completion.choices or not completion.choices[0].message or not completion.choices[0].message.content:

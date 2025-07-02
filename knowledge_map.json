@@ -82,7 +82,6 @@
         "children": [
           { "id": "RU_REACTION_FOREIGN_DIPLO", "name": "Дипломатические действия / Заявления" },
           { "id": "RU_REACTION_FOREIGN_MANIFEST", "name": "Манифесты о вмешательстве / войне" },
-          { "id": "RU_REACTION_FOREIGN_INTERV", "name": "Военная интервенция (с уточнением региона)" },
           { "id": "RU_REACTION_FOREIGN_MOBIL", "name": "Мобилизация / Передвижение войск" },
           { "id": "RU_REACTION_FOREIGN_RECRUIT", "name": "Рекрутские наборы (связанные с войной)" }
         ]
