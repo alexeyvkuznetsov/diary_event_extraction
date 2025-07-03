@@ -41,15 +41,15 @@ FINAL_RESULTS_FILE = "results/revolution_events.json" # Новый финаль�
 # API от forgetapi.ru
 # -----------------------------------------------------------------------------
 
-BASE_URL = "https://forgetapi.ru/v1"
-API_KEY = os.getenv("FORGET_API_KEY")
+#BASE_URL = "https://forgetapi.ru/v1"
+#API_KEY = os.getenv("FORGET_API_KEY")
 
 # -----------------------------------------------------------------------------
 # API от GOOGLE
 # -----------------------------------------------------------------------------
 
-#BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
-#API_KEY = os.getenv("GEMINI_API_KEY")
+BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
+API_KEY = os.getenv("GEMINI_API_KEY")
 
 
 #MODEL_NAME = "gpt-4o" # Укажите актуальную модель для OpenAI-совместимого API
