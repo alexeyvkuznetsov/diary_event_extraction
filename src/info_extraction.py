@@ -48,8 +48,15 @@ FINAL_RESULTS_FILE = "results/revolution_events.json" # Новый финаль�
 # API от GOOGLE
 # -----------------------------------------------------------------------------
 
-BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
-API_KEY = os.getenv("GEMINI_API_KEY")
+#BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
+#API_KEY = os.getenv("GEMINI_API_KEY")
+
+# -----------------------------------------------------------------------------
+# API от CODY
+# -----------------------------------------------------------------------------
+
+BASE_URL = "https://cody.su/api/v1"
+API_KEY = os.getenv("CODY_APY_KEY")
 
 
 #MODEL_NAME = "gpt-4o" # Укажите актуальную модель для OpenAI-совместимого API
@@ -71,9 +78,9 @@ API_KEY = os.getenv("GEMINI_API_KEY")
 #MODEL_NAME = "claude-opus-4-20250514"
 
 #MODEL_NAME = "o4-mini-high"
-#MODEL_NAME = "gpt-4.1"
+MODEL_NAME = "gpt-4.1"
 
-MODEL_NAME = "gemini-2.5-pro"
+#MODEL_NAME = "gemini-2.5-pro"
 
 #MODEL_NAME = "Qwen/Qwen3-235B-A22B"
 
@@ -86,7 +93,7 @@ MODEL_NAME = "gemini-2.5-pro"
 
 TEMPERATURE = 0.1 # Снижаем температуру для большей точности и следования примерам
 
-API_CALLS_PER_MINUTE = 5
+API_CALLS_PER_MINUTE = 15
 MAX_RETRIES = 3
 RETRY_WAIT_BASE = 20
 
