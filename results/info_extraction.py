@@ -59,13 +59,6 @@ API_KEY = os.getenv("GEMINI_API_KEY")
 #API_KEY = os.getenv("CODY_APY_KEY")
 
 
-# -----------------------------------------------------------------------------
-# API от CODY
-# -----------------------------------------------------------------------------
-
-#BASE_URL = "https://cody.su/api/v1"
-#API_KEY = os.getenv("CODY_APY_KEY")
-
 #MODEL_NAME = "gpt-4o" # Укажите актуальную модель для OpenAI-совместимого API
 
 #MODEL_NAME = "mistral-medium-2505"
