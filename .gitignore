@@ -30,7 +30,7 @@ processing.log
 temp/
 #results/
 last_processed.txt
-revolution_events_temp.json
+#revolution_events_temp.json
 # revolution_events.json # Если итоговый результат не должен быть в репо
 
 # Data files (если они большие или приватные)
