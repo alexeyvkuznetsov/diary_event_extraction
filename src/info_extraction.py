@@ -48,7 +48,7 @@ FINAL_RESULTS_FILE = "results/revolution_events.json" # Новый финаль�
 # API от GOOGLE
 # -----------------------------------------------------------------------------
 
-BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
+BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/"
 API_KEY = os.getenv("GEMINI_API_KEY")
 
 # -----------------------------------------------------------------------------
