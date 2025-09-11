@@ -72,7 +72,6 @@ API_KEY = os.getenv("GEMINI_API_KEY")
 
 #MODEL_NAME = "o3-high"
 
-#MODEL_NAME = "gemini-2.0-flash"
 #MODEL_NAME = "grok-3-latest"
 
 #MODEL_NAME = "claude-sonnet-4-20250514-thinking"
@@ -92,9 +91,9 @@ MODEL_NAME = "gemini-2.5-pro"
 
 
 
-TEMPERATURE = 0.1 # Снижаем температуру для большей точности и следования примерам
+TEMPERATURE = 0.1 # Снижаем температуру для большей точности и следованию примерам
 
-API_CALLS_PER_MINUTE = 15
+API_CALLS_PER_MINUTE = 5
 MAX_RETRIES = 3
 RETRY_WAIT_BASE = 20
 
