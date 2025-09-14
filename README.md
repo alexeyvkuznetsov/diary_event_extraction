@@ -85,8 +85,8 @@
 
 1.  **Клонируйте репозиторий:**
     ```bash
-    git clone [URL_вашего_репозитория]
-    cd [название_папки_репозитория]
+    git clone https://github.com/alexeyvkuznetsov/diary_event_extraction.git
+    cd diary_event_extraction
     ```
 
 2.  **Создайте и активируйте виртуальное окружение (рекомендуется):**
