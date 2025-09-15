@@ -1,5 +1,3 @@
-# ПОСЛЕДНЯЯ УСТОЙЧИВАЯ ВЕРСИЯ НА 1=х КЛИЕНТЕ для FORGET API
-
 
 import pandas as pd
 import json
@@ -32,10 +30,10 @@ load_dotenv()
 
 DATA_PATH = "data/diary_with_id.csv"
 KNOWLEDGE_MAP_PATH = "knowledge_map.json"
-TEMP_DIR = "temp" # Новая временная директория
-LAST_PROCESSED_FILE = "last_processed.txt" # Новый файл для отслеживания
-TEMP_RESULTS_FILE = "results/revolution_events_temp.json" # Новый временный файл результатов
-FINAL_RESULTS_FILE = "results/revolution_events.json" # Новый финальный файл результатов
+TEMP_DIR = "temp" # временная директория
+LAST_PROCESSED_FILE = "last_processed.txt" # файл для отслеживания
+TEMP_RESULTS_FILE = "results/revolution_events_temp.json" # временный файл результатов
+FINAL_RESULTS_FILE = "results/revolution_events.json" # финальный файл результатов
 
 # -----------------------------------------------------------------------------
 # API от forgetapi.ru
@@ -51,44 +49,12 @@ FINAL_RESULTS_FILE = "results/revolution_events.json" # Новый финаль�
 BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/"
 API_KEY = os.getenv("GEMINI_API_KEY")
 
-# -----------------------------------------------------------------------------
-# API от CODY
-# -----------------------------------------------------------------------------
-
-#BASE_URL = "https://cody.su/api/v1"
-#API_KEY = os.getenv("CODY_APY_KEY")
-
-
 
 #MODEL_NAME = "gpt-4o" # Укажите актуальную модель для OpenAI-совместимого API
-
-#MODEL_NAME = "mistral-medium-2505"
-#MODEL_NAME = "mistral-large-2407"
-
-
-#MODEL_NAME = "o1"
 #MODEL_NAME = "o3"
-
-
 #MODEL_NAME = "o3-high"
-
 #MODEL_NAME = "grok-3-latest"
-
-#MODEL_NAME = "claude-sonnet-4-20250514-thinking"
-#MODEL_NAME = "claude-opus-4-20250514"
-
-#MODEL_NAME = "o4-mini-high"
-#MODEL_NAME = "gpt-4.1"
-
 MODEL_NAME = "gemini-2.5-pro"
-
-#MODEL_NAME = "Qwen/Qwen3-235B-A22B"
-
-#MODEL_NAME = "models/gemini-2.5-flash" # Укажите актуальную модель
-#MODEL_NAME = "models/gemini-2.0-flash"
-#MODEL_NAME = "models/gemini-1.5-flash"
-
-
 
 
 TEMPERATURE = 0.1 # Снижаем температуру для большей точности и следованию примерам
@@ -195,7 +161,7 @@ class RevolutionEvent(BaseModel):
     text_fragment: str = Field("Не указано", description="Цитата из текста дневника")
 
 # -----------------------------------------------------------------------------
-# УТИЛИТЫ ДЛЯ РАБОТЫ С API - без существенных изменений, кроме инициализации клиента
+# УТИЛИТЫ ДЛЯ РАБОТЫ С API
 # -----------------------------------------------------------------------------
 def initialize_openai_client_single():
     api_key = API_KEY
@@ -232,7 +198,7 @@ def manage_api_rate_limit():
     time.sleep(random.uniform(0.5, 1.5))
 
 # -----------------------------------------------------------------------------
-# УТИЛИТЫ ДЛЯ ОБРАБОТКИ ДАННЫХ (УТОЧНЕННАЯ ensure_default_values)
+# УТИЛИТЫ ДЛЯ ОБРАБОТКИ ДАННЫХ
 # -----------------------------------------------------------------------------
 def ensure_default_values(event_dict: Dict[str, Any]) -> Dict[str, Any]:
     if not isinstance(event_dict, dict):
