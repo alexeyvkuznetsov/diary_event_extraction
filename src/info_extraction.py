@@ -46,15 +46,23 @@ FINAL_RESULTS_FILE = "results/revolution_events.json" # финальный фа�
 # API от GOOGLE
 # -----------------------------------------------------------------------------
 
-BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/"
-API_KEY = os.getenv("GEMINI_API_KEY")
+#BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/"
+#API_KEY = os.getenv("GEMINI_API_KEY")
+
+# -----------------------------------------------------------------------------
+# API от A4F
+# -----------------------------------------------------------------------------
+
+BASE_URL = "https://api.a4f.co/v1"
+API_KEY = os.getenv("YOUR_A4F_API_KEY")
 
 
 #MODEL_NAME = "gpt-4o" # Укажите актуальную модель для OpenAI-совместимого API
 #MODEL_NAME = "o3"
 #MODEL_NAME = "o3-high"
 #MODEL_NAME = "grok-3-latest"
-MODEL_NAME = "gemini-2.5-pro"
+#MODEL_NAME = "gemini-2.5-pro"
+MODEL_NAME = "provider-5/gemini-3-pro"  # API от A4F
 
 
 TEMPERATURE = 0.1 # Снижаем температуру для большей точности и следованию примерам
